@@ -2832,3 +2832,19 @@ document.addEventListener('DOMContentLoaded',init);
     </div>
   </div>
 </div>
+<div id="transpModal" class="overlay" style="display:none;z-index:1200" onclick="if(event.target===this)closeTranspModal()">
+  <div class="modal" style="max-width:500px;width:95%">
+    <div class="modal-hdr"><span style="font-weight:800;font-size:1rem;color:#111827">&#x1F69B; Gestionar Transportadoras</span><button class="btn-icon" onclick="closeTranspModal()">&#x2715;</button></div>
+    <div style="padding:16px 20px">
+      <div id="transpList" style="max-height:240px;overflow-y:auto;margin-bottom:16px"></div>
+      <div style="background:#F8FAFC;border-radius:10px;padding:14px;border:1.5px solid #E2E5F0">
+        <div style="font-size:.78rem;font-weight:700;color:#374151;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Nueva transportadora</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input id="transpNewName" type="text" placeholder="Nombre (ej: LogiRapido)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none">
+          <input id="transpNewKeys" type="text" placeholder="Claves separadas por coma (ej: logirapido, logi)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none">
+          <button onclick="addTransp()" class="btn btn-primary btn-sm" style="align-self:flex-end">+ Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

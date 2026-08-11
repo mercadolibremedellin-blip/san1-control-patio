@@ -1715,8 +1715,8 @@ function renderPendingQueue(){
         '<td style="padding:3px 8px;color:#1E3A8A;font-weight:600">'+(v.ruta||'-')+'</td>'+
         '<td style="padding:3px 8px;color:#1E3A8A;font-size:.75rem">'+(v.zona||'-')+'</td>'+
         '<td style="padding:3px 8px;color:#374151;font-size:.72rem;font-weight:600">'+(v.transportadora||'-')+'</td>'+
-        '<td style="padding:3px 8px">'+(v.tipoRuta?'<span class="'+trClass(v.tipoRuta)+'" style="padding:2px 6px;border-radius:4px;font-size:.65rem;font-weight:700">'+(v.tipoRuta.includes(' - ')?v.tipoRuta.split(' - ').pop():v.tipoRuta)+'</span>':'-')+'</td>'+
         '<td style="padding:3px 8px;font-weight:700;cursor:pointer;color:#1D4ED8;text-decoration:underline" onclick="onBayClick('+bayNum+')">'+bayNum+'</td>'+
+        '<td style="padding:3px 8px">'+(v.tipoRuta?'<span class="'+trClass(v.tipoRuta)+'" style="padding:2px 6px;border-radius:4px;font-size:.65rem;font-weight:700">'+(v.tipoRuta.includes(' - ')?v.tipoRuta.split(' - ').pop():v.tipoRuta)+'</span>':'-')+'</td>'+
         '<td style="padding:3px 8px;color:#374151;font-size:.72rem;font-weight:600">'+posLabel+'</td>';
       tbody.appendChild(tr);
     });

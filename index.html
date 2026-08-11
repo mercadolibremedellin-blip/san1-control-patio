@@ -885,6 +885,7 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
   <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
     <button class="btn btn-blue btn-sm" onclick="saveSettings()">Guardar y conectar</button>
     <button class="btn btn-red btn-sm" onclick="clearAllData()">Limpiar turno</button>
+    <button class="btn btn-sm" onclick="openTranspModal()" style="background:#EFF6FF;color:#1D4ED8;border:1.5px solid #BFDBFE">🚛 Transportadoras</button>
     <button class="btn btn-dark btn-sm" onclick="toggleSettings()">Cerrar</button>
   </div>
   <div class="settings-info"><strong>Sync gratis:</strong> ably.com &rarr; Sign Up &rarr; copia API Key &rarr; pegala arriba &rarr; sync instantaneo en todos los dispositivos!</div>
@@ -1231,8 +1232,16 @@ const BOTTOM_BAYS=[76,77,78,79,80];
 // Bays ordered ascending: 19 → 80
 const ALL_POSSIBLE_BAYS=Array.from({length:66},(_,i)=>15+i); // 15-80
 const COMPANIES=['Cabify','Humadea','Logysto','Viotrans','Distransa','Carga Paramo','99 Minutos','Crowd'];
-const COMP_KEYS={'Cabify':['cabify'],'Humadea':['humadea'],'Logysto':['logysto'],'Viotrans':['viotrans'],'Distransa':['distransa'],'Carga Paramo':['paramo'],'99 Minutos':['99 minutos','99min'],'Crowd':['crowd','meliextra','meli extra','meliextra','crowd meli']};
+const const COMP_KEYS_DEFAULT={'Cabify':['cabify'],'Humadea':['humadea'],'Logysto':['logysto'],'Viotrans':['viotrans'],'Distransa':['distransa'],'Carga Paramo':['paramo'],'99 Minutos':['99 minutos','99min'],'Crowd':['crowd','meliextra','meli extra','meliextra','crowd meli']};
+let COMP_KEYS={...COMP_KEYS_DEFAULT};
+function loadTransportadoras(){try{const s=localStorage.getItem('san1_transportadoras');if(s){const extra=JSON.parse(s);COMP_KEYS={...COMP_KEYS_DEFAULT,...extra};}}catch(e){}}
+function saveTransportadoras(){try{const extra={};for(const[k,v]of Object.entries(COMP_KEYS)){if(!COMP_KEYS_DEFAULT[k])extra[k]=v;}localStorage.setItem('san1_transportadoras',JSON.stringify(extra));}catch(e){}}
 function normalizeTransp(str){if(!str)return'';const low=str.toLowerCase();for(const[name,keys]of Object.entries(COMP_KEYS)){if(keys.some(k=>low.includes(k)))return name;}return str;}
+function openTranspModal(){loadTransportadoras();const modal=document.getElementById('transpModal');if(modal){renderTranspList();modal.style.display='flex';}}
+function closeTranspModal(){const modal=document.getElementById('transpModal');if(modal)modal.style.display='none';}
+function renderTranspList(){const el=document.getElementById('transpList');if(!el)return;const rows=Object.keys(COMP_KEYS).map(name=>{const isDefault=!!COMP_KEYS_DEFAULT[name];return'<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #F1F5F9"><span style="flex:1;font-size:.85rem;font-weight:600;color:#111827">'+name+'</span><span style="font-size:.72rem;color:#9CA3AF;flex:2">'+(COMP_KEYS[name]||[]).join(', ')+'</span>'+(isDefault?'<span style="font-size:.68rem;color:#9CA3AF;padding:2px 6px;background:#F3F4F6;border-radius:4px">base</span>':'<button onclick="deleteTransp(''+name+'')" style="background:#FEE2E2;color:#B91C1C;border:none;border-radius:6px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-weight:700">Eliminar</button>')+'</div>';}).join('');el.innerHTML=rows||'<div style="color:#9CA3AF;font-size:.8rem;padding:8px 0">No hay transportadoras</div>';}
+function addTransp(){const nameEl=document.getElementById('transpNewName');const keysEl=document.getElementById('transpNewKeys');const name=(nameEl.value||'').trim();const keys=(keysEl.value||'').split(',').map(k=>k.trim().toLowerCase()).filter(Boolean);if(!name){toast('Ingresa el nombre','error');return;}if(!keys.length){toast('Ingresa al menos una clave','error');return;}COMP_KEYS[name]=keys;saveTransportadoras();nameEl.value='';keysEl.value='';renderTranspList();toast('Transportadora agregada','success');}
+function deleteTransp(name){if(COMP_KEYS_DEFAULT[name]){toast('No se puede eliminar una base','error');return;}delete COMP_KEYS[name];saveTransportadoras();renderTranspList();toast('Transportadora eliminada','success');}
 let ALL_BAYS=[];
 const WAVE_BG={0:'#4B5563',1:'#1D4ED8',2:'#D4A800',3:'#B45309',4:'#6D28D9',5:'#BE185D',6:'#0E7490'};
 
@@ -1309,7 +1318,7 @@ function genQR(plate,containerId){
 /* INIT */
 async function init(){
   // Load active bays (default 18-76)
-  try{const _ab=localStorage.getItem('san1_active_bays');ALL_BAYS=_ab?JSON.parse(_ab):Array.from({length:44},(_,i)=>16+i);}catch(e){ALL_BAYS=Array.from({length:44},(_,i)=>16+i);}
+  try{const _ab=localStorage.getItem('san1_active_bays');ALL_BAYS=_ab?JSON.parse(_ab):Array.from({length:44},(_,i)=>16+i);}catch(e){ALL_BAYS=Array.from({length:44},(_,i)=>16+i);}loadTransportadoras();
   // Initialize all possible bays so any can be activated later
   ALL_POSSIBLE_BAYS.forEach(n=>{S.bays[n]={number:n,status:'empty',queue:[],currentIdx:0,entryTime:null,elapsedSeconds:0};});
   loadLocalState();
@@ -2396,8 +2405,8 @@ function toggleSettings(){
   }
 }
 function saveSettings(){const k=document.getElementById('ablyKeyInput').value.trim(),ch=document.getElementById('channelInput').value.trim()||'san1-patio';S.ablyKey=k;S.channelName=ch;localStorage.setItem('san1_ably_key',k);localStorage.setItem('san1_channel',ch);if(k){setupAbly(k,ch);toast('Conectando a Ably...','success');}else toast('Guardado (modo local)','warning');toggleSettings();}
-function clearAllData(){if(!confirm('Limpiar TODOS los datos para nuevo turno?'))return;if(!confirm('CONFIRMACION FINAL: Borrar todo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];S.dispatchedOla=0;const _clrTs2=Date.now();try{localStorage.setItem('san1_clear_ts',String(_clrTs2));}catch(e){}S.isStateOwner=true;S.stateGen+=10000;renderLayout();saveLocal();broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs2,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Turno limpiado','success');}
-function limpiarEstacionamientos(){if(!confirm('¿Limpiar todos los estacionamientos y dejarlos listos para el siguiente ciclo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];try{localStorage.removeItem('san1_hist');localStorage.removeItem('san1_actlog');}catch(e){}const _clrTs=Date.now();try{localStorage.setItem('san1_clear_ts',String(_clrTs));}catch(e){}S.isStateOwner=true;S.stateGen+=10000;renderLayout();renderActivityFeed();saveLocal();broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Estacionamientos limpiados','success');}
+function clearAllData(){if(!confirm('Limpiar TODOS los datos para nuevo turno?'))return;if(!confirm('CONFIRMACION FINAL: Borrar todo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];S.dispatchedOla=0;S.isStateOwner=true;S.stateGen+=10000;renderLayout();saveLocal();const _clrTs2=Date.now();try{localStorage.setItem('san1_clear_ts',String(_clrTs2));}catch(e){}broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs2,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Turno limpiado','success');}
+function limpiarEstacionamientos(){if(!confirm('¿Limpiar todos los estacionamientos y dejarlos listos para el siguiente ciclo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];try{localStorage.removeItem('san1_hist');localStorage.removeItem('san1_actlog');}catch(e){}S.isStateOwner=true;S.stateGen+=10000;renderLayout();renderActivityFeed();saveLocal();const _clrTs=Date.now();try{localStorage.setItem('san1_clear_ts',String(_clrTs));}catch(e){}broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Estacionamientos limpiados','success');}
 
 /* TOAST */
 function toast(msg,type,dur){type=type||'info';dur=dur||5000;const w=document.getElementById('toastWrap');const d=document.createElement('div');d.className='toast t-'+type;d.textContent=msg;d.onclick=()=>d.remove();w.appendChild(d);if(w.children.length>5)w.firstChild.remove();setTimeout(()=>{d.style.transition='opacity .3s';d.style.opacity='0';setTimeout(()=>d.remove(),300);},dur);}
@@ -2543,7 +2552,8 @@ function openResumen(){
 function saveLocal(){S.stateGen++;S._stateTs=Date.now();try{const save={};ALL_BAYS.forEach(n=>{const b=S.bays[n];save[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds};});localStorage.setItem('san1_bays',JSON.stringify(save));localStorage.setItem('san1_hist',JSON.stringify(S.history.slice(-300)));localStorage.setItem('san1_gen',String(S.stateGen));localStorage.setItem('san1_state_ts',String(S._stateTs));localStorage.setItem('san1_dispatch_ola',String(S.dispatchedOla||0));}catch(e){}}
 function loadLocalState(){try{const raw=localStorage.getItem('san1_bays');if(raw){S.stateReady=true;const g=localStorage.getItem('san1_gen');if(g)S.stateGen=parseInt(g)||0;const _ts=localStorage.getItem('san1_state_ts');if(_ts)S._stateTs=parseInt(_ts)||0;// Solo es dueño del estado si fue guardado HOY — si es de ayer, espera estado fresco
 const _today=new Date();_today.setHours(0,0,0,0);const _todayMs=_today.getTime();S.isStateOwner=S._stateTs>=_todayMs;// Solo restaurar dispatchedOla si el estado es de HOY — ayer quedó en 1 y causaba bugs en TV
-const _dol=localStorage.getItem('san1_dispatch_ola');if(_dol!==null&&S._stateTs>=_todayMs)S.dispatchedOla=parseInt(_dol)||0;const data=JSON.parse(raw);ALL_BAYS.forEach(n=>{if(!data[n])return;const d=data[n],b=S.bays[n];b.status=d.status||'empty';b.queue=d.queue||[];b.currentIdx=d.currentIdx||0;b.entryTime=d.entryTime?new Date(d.entryTime):null;b.elapsedSeconds=d.elapsedSeconds||0;if(b.status==='occupied'&&b.entryTime)b.elapsedSeconds=Math.floor((Date.now()-b.entryTime.getTime())/1000);});}const rh=localStorage.getItem('san1_hist');if(rh)S.history=JSON.parse(rh);loadActivityLog();}catch(e){}}
+const _dol=localStorage.getItem('san1_dispatch_ola');if(_dol!==null&&S._stateTs>=_todayMs)S.dispatchedOla=parseInt(_dol)||0;const data=JSON.parse(raw);ALL_BAYS.forEach(n=>{if(!data[n])return;const d=data[n],b=S.bays[n];b.status=d.status||'empty';b.queue=d.queue||[];b.currentIdx=d.currentIdx||0;b.entryTime=d.entryTime?new Date(d.entryTime):null;b.elapsedSeconds=d.elapsedSeconds||0;if(b.status==='occupied'&&b.entryTime)b.elapsedSeconds=Math.floor((Date.now()-b.entryTime.getTime())/1000);});}const rh=localStorage.getItem('san1_hist');if(rh)S.history=JSON.parse(rh);loadActivityLog();}catch(e){}// Force-empty if a clear happened after last save
+try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=parseInt(localStorage.getItem('san1_state_ts')||'0');if(_fc>0&&_fc>_fs){ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});S.stateGen=Math.max(S.stateGen,50000);S.isStateOwner=true;}}catch(e){}}
 
 /* REAL-TIME */
 function setupBC(){try{S.bc=new BroadcastChannel('san1-v3');S.bc.onmessage=e=>{if(S.isBroadcasting)return;const t=e.data.type,d=e.data.data;if(t==='STATE')applyRemote(d);else if(t==='CSV_LOAD'){S.isStateOwner=false;applyRemote(d,true);}else if(t==='USERS_SYNC'){const _lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(d&&d.users&&d.ts>_lt){AUTH.saveUsers(d.users);}else if(d&&Array.isArray(d))AUTH.saveUsers(d);}else if(t==='REASSIGN_NOTIF')showReassignNotif(d);else if(t==='PLATE_CHANGE')applyPlateChange(d);else if(t==='WAVE_DISPATCH')handleWaveDispatch(d);else if(t==='DRIVER_CALL')handleDriverCall(d);else if(t==='REQUEST_STATE'){if(S.isStateOwner){broadcastState(true);AUTH.syncUsers();}}};}catch(e){}}
@@ -2803,3 +2813,20 @@ document.addEventListener('DOMContentLoaded',init);
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-green" style="flex:1;justify-content:center" onclick="saveCycles()">💾 Guardar</button>
       <button class="btn btn-gray" style="flex:1;justify-content:center" onclick="closeModal('cycleModal')">Cerrar</button>
+<!-- TRANSPORTADORA MODAL -->
+<div id="transpModal" class="overlay" style="display:none;z-index:1100" onclick="if(event.target===this)closeTranspModal()">
+  <div class="modal" style="max-width:520px;width:95%">
+    <div class="modal-hdr"><span style="font-weight:800;font-size:1rem;color:#111827">&#x1F69B; Gestionar Transportadoras</span><button class="btn-icon" onclick="closeTranspModal()">&#x2715;</button></div>
+    <div style="padding:16px 20px">
+      <div id="transpList" style="max-height:240px;overflow-y:auto;margin-bottom:16px"></div>
+      <div style="background:#F8FAFC;border-radius:10px;padding:14px;border:1.5px solid #E2E5F0">
+        <div style="font-size:.78rem;font-weight:700;color:#374151;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Nueva transportadora</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input id="transpNewName" type="text" placeholder="Nombre (ej: LogiRapido)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none">
+          <input id="transpNewKeys" type="text" placeholder="Claves separadas por coma (ej: logirapido, logi)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none">
+          <button onclick="addTransp()" class="btn btn-primary btn-sm" style="align-self:flex-end">+ Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

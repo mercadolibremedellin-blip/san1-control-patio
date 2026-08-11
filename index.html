@@ -677,11 +677,11 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
   margin-bottom: 8px;
 }
 .rcst-occ   { background: #FEE2E2; color: #B91C1C }
-.rcst-wait  { background: #EFF6FF; color: #1D4ED8 }
-.rcst-avail { background: #DCFCE7; color: #15803D; animation: pulse-badge 1.4s infinite }
-.rcst-queue { background: #FEF3C7; color: #B45309 }
+.rcst-wait  { background: #FFFBEB; color: #92400E }
+.rcst-avail { background: #DCFCE7; color: #15803D }
+.rcst-queue { background: #F8FAFC; color: #475569 }
 .rcst-done  { background: #F0FDF4; color: #15803D }
-@keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:.65} }
+
 
 .rc-wave {
   display: inline-block;
@@ -2339,18 +2339,19 @@ function renderCoordDash(){
     const card=document.createElement('div');
     const ola=item.v.ola||0;
     let stLabel='',stCls='',cardCls='',docaBadge='';
+    const _bdBase='border-radius:20px;font-size:.72rem;font-weight:600;letter-spacing:.3px;display:inline-flex;align-items:center;gap:6px;padding:5px 12px;margin-bottom:8px;';
     if(item.st==='occupied'){
-      stLabel='EN CARGA';stCls='rcst-occ';cardCls='rc-occ';
-      docaBadge='<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;padding:5px 9px;background:rgba(220,38,38,.13);border-radius:7px;font-size:.73rem;font-weight:700;color:#FCA5A5">&#x1F534; Doca ocupada &mdash; cargando</div>';
+      stLabel='En carga';stCls='rcst-occ';cardCls='rc-occ';
+      docaBadge='<span style="'+_bdBase+'background:#FEF2F2;color:#991B1B;border:1px solid #FECACA"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#DC2626"/></svg>Doca ocupada</span>';
     }else if(item.st==='waiting'){
-      stLabel='EN ESPERA';stCls='rcst-wait';
-      docaBadge='<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;padding:5px 9px;background:rgba(29,78,216,.13);border-radius:7px;font-size:.73rem;font-weight:700;color:#93C5FD">&#x1F535; En doca &mdash; esperando despacho</div>';
+      stLabel='Pendiente llegada';stCls='rcst-wait';
+      docaBadge='<span style="'+_bdBase+'background:#FFFBEB;color:#92400E;border:1px solid #FDE68A"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#D97706"/></svg>Doca libre &mdash; driver pendiente de llegada</span>';
     }else if(item.st==='available'){
-      stLabel='DISPONIBLE';stCls='rcst-avail';cardCls='';
-      docaBadge='<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;padding:5px 9px;background:rgba(21,128,61,.22);border-radius:7px;font-size:.73rem;font-weight:700;color:#4ADE80">&#x1F7E2; Doca LIBRE &mdash; puede ingresar ahora</div>';
+      stLabel='Disponible';stCls='rcst-avail';
+      docaBadge='<span style="'+_bdBase+'background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#059669"/></svg>Doca libre</span>';
     }else{
-      stLabel='EN COLA';stCls='rcst-queue';
-      docaBadge='<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;padding:5px 9px;background:rgba(245,158,11,.12);border-radius:7px;font-size:.73rem;font-weight:700;color:#FCD34D">&#x1F7E1; Pendiente &mdash; doca ocupada</div>';
+      stLabel='En cola';stCls='rcst-queue';
+      docaBadge='<span style="'+_bdBase+'background:#F8FAFC;color:#475569;border:1px solid #E2E8F0"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#94A3B8"/></svg>En cola &mdash; esperando turno</span>';
     }
     const _safe_plate=(item.v.patente||'').replace(/['"]/g,'');
     const _qrId='coord-qr-'+item.bayNum+'-'+item.qi;

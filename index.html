@@ -2328,13 +2328,15 @@ function renderCoordDash(){
   const inDoca=items.filter(x=>x.st==='waiting'||x.st==='available').length;
   const queued=items.filter(x=>x.st==='queued').length;
   document.getElementById('coordStats').innerHTML=
-    '<div class="cds" style="background:rgba(220,38,38,.2);color:#FCA5A5">En carga: '+occ+'</div>'+
-    '<div class="cds" style="background:rgba(21,128,61,.2);color:#86EFAC">En doca: '+inDoca+'</div>'+
-    '<div class="cds" style="background:rgba(245,158,11,.2);color:#FCD34D">En cola: '+queued+'</div>'+
-    '<div class="cds" style="background:rgba(99,102,241,.2);color:#C4B5FD">Completadas: '+doneItems.length+'</div>';
+    '<button class="coord-filter-chip" data-filter="occupied" onclick="setCoordFilter('occupied')" style="background:rgba(220,38,38,.15);color:#DC2626;border-color:rgba(220,38,38,.25)">En carga: '+occ+'</button>'+
+    '<button class="coord-filter-chip" data-filter="active" onclick="setCoordFilter('active')" style="background:rgba(29,78,216,.1);color:#1D4ED8;border-color:rgba(29,78,216,.2)">En espera: '+(inDoca+queued)+'</button>'+
+    '<button class="coord-filter-chip" data-filter="done" onclick="setCoordFilter('done')" style="background:rgba(99,102,241,.1);color:#6366F1;border-color:rgba(99,102,241,.2)">Completadas: '+doneItems.length+'</button>';
+  // restore active filter visual
+  const _af=S._coordFilter;if(_af){const _ch=document.querySelector('[data-filter="'+_af+'"]');if(_ch)_ch.classList.add('coord-filter-active');}
   items.sort((a,z)=>({'occupied':0,'available':1,'waiting':2,'queued':3}[a.st]||9)-({'occupied':0,'available':1,'waiting':2,'queued':3}[z.st]||9)||(a.v.ola||9)-(z.v.ola||9));
   const container=document.getElementById('coordRoutes');
   container.innerHTML='';
+  // keep active filter across re-renders
   items.forEach(item=>{
     const card=document.createElement('div');
     const ola=item.v.ola||0;
@@ -2387,10 +2389,28 @@ function renderCoordDash(){
         '</div>'+
         '<div id="'+item.bayNum+'-qr-wrap" style="display:none;text-align:center;padding:10px 0;background:#F8FAFC;border-radius:10px"><div id="'+_qrId+'"></div></div>'+
       '</div>';
+    card.dataset.st=item.st;
     container.appendChild(card);
     setTimeout(()=>{const _qc=document.getElementById(_qrId);if(_qc&&!_qc.dataset.done){try{new QRCode(_qc,{text:'E'+item.bayNum+','+(item.v.ola||1),width:120,height:120,colorDark:'#1F2937',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}}_qc&&(_qc.dataset.done='1');},50);
   });
 }
+
+function setCoordFilter(type){
+  if(S._coordFilter===type){S._coordFilter=null;}else{S._coordFilter=type;}
+  const _f=S._coordFilter;
+  // Update chip visual
+  document.querySelectorAll('.coord-filter-chip').forEach(c=>c.classList.remove('coord-filter-active'));
+  if(_f){const _ch=document.querySelector('[data-filter="'+_f+'"]');if(_ch)_ch.classList.add('coord-filter-active');}
+  // Show/hide cards
+  document.querySelectorAll('#coordRoutes > *').forEach(card=>{
+    if(!_f){card.style.display='';return;}
+    const st=card.dataset.st||'';
+    if(_f==='occupied')card.style.display=st==='occupied'?'':'none';
+    else if(_f==='active')card.style.display=(st==='waiting'||st==='available'||st==='queued')?'':'none';
+    else if(_f==='done')card.style.display='none';// completadas no tienen tarjeta activa
+  });
+}
+
 function refreshCoordStats(){const u=AUTH.current;if(!u||u.role!=='coordinator')return;const trsp=normalizeTransp(u.transportadora||'');let occ=0,wait=0;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.queue.forEach((v,qi)=>{if(normalizeTransp(v.transportadora)===trsp){if(qi===b.currentIdx){if(b.status==='occupied')occ++;else if(b.status==='waiting')wait++;}else wait++;}});});const done=S.history.filter(h=>normalizeTransp(h.transportadora)===trsp).length;const el=document.getElementById('coordStats');if(el)el.innerHTML='<div class="cds" style="background:rgba(220,38,38,.2);color:#FCA5A5">En carga: '+occ+'</div><div class="cds" style="background:rgba(29,78,216,.2);color:#93C5FD">En espera: '+wait+'</div><div class="cds" style="background:rgba(21,128,61,.2);color:#86EFAC">Completadas: '+done+'</div>';ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='occupied'&&b.entryTime){const el=document.getElementById('ct'+n);if(el)el.textContent=fmt(b.elapsedSeconds);}});}
 
 /* CHANGE PLATE */

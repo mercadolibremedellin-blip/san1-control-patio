@@ -1232,7 +1232,7 @@ const BOTTOM_BAYS=[76,77,78,79,80];
 // Bays ordered ascending: 19 → 80
 const ALL_POSSIBLE_BAYS=Array.from({length:66},(_,i)=>15+i); // 15-80
 const COMPANIES=['Cabify','Humadea','Logysto','Viotrans','Distransa','Carga Paramo','99 Minutos','Crowd'];
-const COMP_KEYS_DEFAULT={'Cabify':['cabify'],'Humadea':['humadea'],'Logysto':['logysto'],'Viotrans':['viotrans'],'Distransa':['distransa'],'Carga Paramo':['paramo'],'99 Minutos':['99 minutos','99min'],'Crowd':['crowd','meliextra','meli extra','meliextra','crowd meli']};
+const COMP_KEYS_DEFAULT={'Cabify':['cabify'],'Humadea':['humadea'],'Logysto':['logysto'],'Viotrans':['viotrans'],'Distransa':['distransa'],'Carga Paramo':['paramo'],'99 Minutos':['99 minutos','99min'],'Crowd':['crowd','meliextra','meli extra','meliextra','crowd meli'],'Unicarga':['unicarga']};
 let COMP_KEYS={...COMP_KEYS_DEFAULT};
 function loadTransportadoras(){try{const s=localStorage.getItem('san1_transportadoras');if(s){const extra=JSON.parse(s);COMP_KEYS={...COMP_KEYS_DEFAULT,...extra};}}catch(e){}}
 function saveTransportadoras(){try{const extra={};for(const[k,v]of Object.entries(COMP_KEYS)){if(!COMP_KEYS_DEFAULT[k])extra[k]=v;}localStorage.setItem('san1_transportadoras',JSON.stringify(extra));}catch(e){}}
@@ -1278,6 +1278,7 @@ const AUTH={
       {id:'seed_viotrans',username:'Viotrans1',name:'Viotrans',role:'coordinator',transportadora:'Viotrans',pass:'viotrans2026'},
       {id:'seed_cargaparamo',username:'CargaParamo1',name:'Carga Paramo',role:'coordinator',transportadora:'Carga Paramo',pass:'cargaparamo2026'},
       {id:'seed_crowdmeli',username:'CrowdMeli1',name:'Crowd Meli',role:'coordinator',transportadora:'CrowdMeli',pass:'crowdmeli2026'},
+      {id:'seed_unicarga',username:'Unicarga1',name:'Unicarga',role:'coordinator',transportadora:'Unicarga',pass:'unicarga2026'},
       {id:'seed_meliextra',username:'MeliExtra',name:'MeliExtra',role:'coordinator',transportadora:'Crowd Meli',pass:'meliextra2026'},
     ];
     // Siempre sincronizar contraseñas del SEED (actualiza ph de usuarios existentes)

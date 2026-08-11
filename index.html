@@ -993,25 +993,28 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.78rem" id="pendingQueueTable">
         <thead>
-          <tr style="color:#1E3A8A;font-weight:700;font-size:.7rem">
-            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Ola</th>
-            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Placa</th>
-            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Ruta</th>
-            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Zona</th>
-            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Empresa</th>
-            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Muelle</th>
-            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Tipo</th>
-            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Pos.</th>
+          <colgroup>
+            <col style="width:70px"><col style="width:100px"><col style="width:14%"><col style="width:18%"><col style="width:14%"><col style="width:60px"><col style="width:110px"><col style="width:70px">
+          </colgroup>
+          <tr style="color:#1E3A8A;font-weight:700;font-size:.7rem;background:#EFF6FF">
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Ola</th>
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Placa</th>
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Ruta</th>
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Zona</th>
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Empresa</th>
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Muelle</th>
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Tipo</th>
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Pos.</th>
           </tr>
           <tr id="pendingFilterRow" style="background:#F8FAFC">
-            <td style="padding:2px 4px"><select id="pf-ola" onchange="applyPendingFilters()" style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;background:#fff;color:#374151"><option value="">Todas</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></td>
-            <td style="padding:2px 4px"><input id="pf-placa" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;box-sizing:border-box"></td>
-            <td style="padding:2px 4px"><input id="pf-ruta" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;box-sizing:border-box"></td>
-            <td style="padding:2px 4px"><input id="pf-zona" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;box-sizing:border-box"></td>
-            <td style="padding:2px 4px"><input id="pf-emp" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;box-sizing:border-box"></td>
-            <td style="padding:2px 4px"></td>
-            <td style="padding:2px 4px"><select id="pf-tipo" onchange="applyPendingFilters()" style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;background:#fff;color:#374151"><option value="">Todos</option><option>Riesgo</option><option>Lejana</option><option>Híbrida</option><option>Automovil</option></select></td>
-            <td style="padding:2px 4px;text-align:right"><button onclick="clearPendingFilters()" title="Limpiar filtros" style="font-size:.6rem;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:5px;padding:1px 5px;cursor:pointer;color:#64748B">✕</button></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><select id="pf-ola" onchange="applyPendingFilters()" style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 4px;background:#fff;color:#374151"><option value="">Todas</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-placa" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-ruta" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-zona" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-emp" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><select id="pf-tipo" onchange="applyPendingFilters()" style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 4px;background:#fff;color:#374151"><option value="">Todos</option><option>Riesgo</option><option>Lejana</option><option>Híbrida</option><option>Automovil</option><option>Small Van</option></select></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9;text-align:center"><button onclick="clearPendingFilters()" title="Limpiar filtros" style="font-size:.65rem;background:#FEE2E2;border:1px solid #FECACA;border-radius:6px;padding:2px 7px;cursor:pointer;color:#DC2626;font-weight:700">✕</button></td>
           </tr>
         </thead>
         <tbody id="pendingQueueBody"></tbody>

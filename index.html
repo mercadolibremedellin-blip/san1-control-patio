@@ -469,6 +469,117 @@ html,body{height:100%;background:var(--ml-light);color:#1F2937;
 
 /* Misc */
 select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-serif;letter-spacing:.01em}
+
+/* ══════════════════════════════════════════════
+   MOBILE RESPONSIVE  ≤ 640px
+══════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── LOGIN ── */
+  #loginOverlay { flex-direction: column }
+  .login-left-panel { display: none }
+  .login-box { padding: 32px 24px; border-top: 6px solid var(--ml-yellow) }
+  .login-box > * { max-width: 100% }
+
+  /* ── HEADER TOP ── */
+  .hdr-top { min-height: 44px; padding: 0 10px; gap: 6px }
+  .hdr-title { font-size: .88rem; letter-spacing: 0 }
+  .hdr-title span { display: none }
+  .user-badge { padding: 4px 8px; gap: 4px; font-size: .67rem }
+  .role-tag { display: none }
+  #connText { display: none }
+
+  /* ── HEADER BOTTOM: smaller buttons, keep scroll ── */
+  .hdr-bottom { padding: 5px 8px; gap: 4px }
+  .hdr-bottom .btn { font-size: .62rem; padding: 5px 9px; border-radius: 7px }
+
+  /* ── LEGEND: hide on mobile ── */
+  .legend { display: none }
+
+  /* ── STATS BAR ── */
+  .statbar { padding: 4px 10px; gap: 10px; font-size: .67rem }
+
+  /* ── BAY GRID: smaller cards ── */
+  .bay-grid {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    grid-auto-rows: 72px;
+    gap: 4px;
+    padding: 8px;
+  }
+  .bay { height: 72px; padding: 4px 5px; border-radius: 8px; border-left-width: 3px }
+  .bn { font-size: .53rem }
+  .bp { font-size: .62rem; letter-spacing: .02em }
+  .br { font-size: .50rem }
+  .bc { font-size: .46rem }
+  .btimer { font-size: .52rem; padding: 1px 3px }
+
+  /* ── SCANNER: full-screen overlay when open ── */
+  #viewContainer.scanner-open { flex-direction: column }
+  #viewContainer.scanner-open #scannerView {
+    width: 100%;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 300;
+    max-height: 100vh;
+    overflow-y: auto;
+    padding-top: 8px;
+  }
+  #viewContainer.scanner-open #patioView { display: none }
+
+  /* ── MODALS: bottom sheet ── */
+  .overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal {
+    border-radius: 18px 18px 0 0;
+    max-width: 100%;
+    width: 100%;
+    max-height: 88vh;
+    padding: 18px 16px 28px;
+  }
+  .modal-wide { max-width: 100% }
+
+  /* ── SCAN INPUT: bigger touch target ── */
+  .scan-input { font-size: 1.15rem; padding: 13px 14px }
+  .scan-input-wrap { max-width: 100% }
+  .scan-result { max-width: 100% }
+
+  /* ── SCAN TABLE: smaller text ── */
+  .scan-table { font-size: .70rem }
+  .scan-table th { font-size: .56rem; padding: 5px 6px }
+  .scan-table td { padding: 5px 6px }
+
+  /* ── PENDING QUEUE TABLE ── */
+  #pendingQueueTable { font-size: .68rem }
+
+  /* ── ACTIVITY PANEL ── */
+  .act-hdr { padding: 7px 12px }
+  .act-item { font-size: .63rem }
+
+  /* ── TOAST ── */
+  .toast-wrap { bottom: 70px; right: 10px; left: 10px }
+  .toast { font-size: .72rem; padding: 8px 12px }
+
+  /* ── SETTINGS PANEL ── */
+  .sf { grid-template-columns: 1fr }
+
+  /* ── PREIN SEARCH PANEL ── */
+  #preinSearchPanel { margin: 6px 6px 0 }
+}
+
+/* ── EXTRA SMALL (≤ 375px / iPhone SE) ── */
+@media (max-width: 375px) {
+  .bay-grid {
+    grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
+    grid-auto-rows: 68px;
+    gap: 3px;
+    padding: 6px;
+  }
+  .bay { height: 68px }
+  .bp { font-size: .58rem }
+}
+
 </style>
 </head>
 <body>

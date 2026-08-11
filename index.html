@@ -30,8 +30,8 @@
   --ml-error:       #DC2626;
   --ml-success:     #16A34A;
   /* Ola accent colors (for borders/badges only — not full fills) */
-  --ola1:#1D4ED8; --ola2:#B45309; --ola3:#92400E;
-  --ola4:#6D28D9; --ola5:#BE185D; --ola6:#0E7490;
+  --ola1:#9CA3AF; --ola2:#1D4ED8; --ola3:#D97706;
+  --ola4:#7C3AED; --ola5:#BE185D; --ola6:#0E7490;
   /* Legacy */
   --red:#DC2626; --grn:#16A34A; --amb:#D97706;
   --emp:#E8EBF4; --blk:#CBD5E1;
@@ -644,10 +644,10 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
 .route-card:hover { box-shadow: 0 4px 16px rgba(45,50,119,.12) }
 
 /* Ola left-border colors */
-.rc-ola1 { border-left-color: #1D4ED8 }
-.rc-ola2 { border-left-color: #D97706 }
-.rc-ola3 { border-left-color: #B45309 }
-.rc-ola4 { border-left-color: #6D28D9 }
+.rc-ola1 { border-left-color: #D1D5DB }
+.rc-ola2 { border-left-color: #1D4ED8 }
+.rc-ola3 { border-left-color: #D97706 }
+.rc-ola4 { border-left-color: #7C3AED }
 .rc-ola5 { border-left-color: #BE185D }
 .rc-ola6 { border-left-color: #0E7490 }
 .rc-occ  { border-left-color: #DC2626; background: #FFF8F8 }
@@ -1260,7 +1260,7 @@ function renderTranspList(){const el=document.getElementById('transpList');if(!e
 function addTransp(){const nameEl=document.getElementById('transpNewName');const keysEl=document.getElementById('transpNewKeys');const name=(nameEl.value||'').trim();const keys=(keysEl.value||'').split(',').map(k=>k.trim().toLowerCase()).filter(Boolean);if(!name){toast('Ingresa el nombre','error');return;}if(!keys.length){toast('Ingresa al menos una clave','error');return;}COMP_KEYS[name]=keys;saveTransportadoras();nameEl.value='';keysEl.value='';renderTranspList();populateTranspSelect();toast('Transportadora agregada','success');}
 function deleteTransp(name){if(COMP_KEYS_DEFAULT[name]){toast('No se puede eliminar una base','error');return;}delete COMP_KEYS[name];saveTransportadoras();renderTranspList();populateTranspSelect();toast('Transportadora eliminada','success');}
 let ALL_BAYS=[];
-const WAVE_BG={0:'#4B5563',1:'#1D4ED8',2:'#D4A800',3:'#B45309',4:'#6D28D9',5:'#BE185D',6:'#0E7490'};
+const WAVE_BG={0:'#4B5563',1:'#6B7280',2:'#1D4ED8',3:'#D97706',4:'#7C3AED',5:'#BE185D',6:'#0E7490'};
 
 /* AUTH */
 const AUTH={

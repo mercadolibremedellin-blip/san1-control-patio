@@ -5,7 +5,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>SAN1 Control de Patio</title>
 <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -488,8 +491,9 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
   .login-box { padding: 20px 20px 28px }
   .login-box > * { max-width: 100% }
   /* Hide redundant truck+title already shown in yellow banner */
-  .login-logo { display: none }
-  .login-title { display: none }
+  .login-logo { display: none !important }
+  .login-title { display: none !important }
+  .login-sub { margin-top: 4px !important }
   .login-sub { margin-top: 0; font-size: .82rem }
 
   /* ── HEADER TOP ── */

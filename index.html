@@ -1237,7 +1237,20 @@ let COMP_KEYS={...COMP_KEYS_DEFAULT};
 function loadTransportadoras(){try{const s=localStorage.getItem('san1_transportadoras');if(s){const extra=JSON.parse(s);COMP_KEYS={...COMP_KEYS_DEFAULT,...extra};}}catch(e){}}
 function saveTransportadoras(){try{const extra={};for(const[k,v]of Object.entries(COMP_KEYS)){if(!COMP_KEYS_DEFAULT[k])extra[k]=v;}localStorage.setItem('san1_transportadoras',JSON.stringify(extra));}catch(e){}}
 function normalizeTransp(str){if(!str)return'';const low=str.toLowerCase();for(const[name,keys]of Object.entries(COMP_KEYS)){if(keys.some(k=>low.includes(k)))return name;}return str;}
-function openTranspModal(){loadTransportadoras();const modal=document.getElementById('transpModal');if(modal){renderTranspList();modal.style.display='flex';}}
+function openTranspModal(){
+  loadTransportadoras();
+  let modal=document.getElementById('transpModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='transpModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(45,50,119,.4);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(4px)';
+    modal.onclick=function(e){if(e.target===modal)closeTranspModal();};
+    modal.innerHTML='<div style="background:#fff;border-radius:16px;width:100%;max-width:500px;box-shadow:0 20px 60px rgba(0,0,0,.2);font-family:Inter,sans-serif"><div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #E2E5F0"><span style="font-weight:800;font-size:1rem;color:#111827">&#x1F69B; Gestionar Transportadoras</span><button onclick="closeTranspModal()" style="border:none;background:none;font-size:1.2rem;cursor:pointer;color:#6B7280">&#x2715;</button></div><div style="padding:16px 20px"><div id="transpList" style="max-height:240px;overflow-y:auto;margin-bottom:16px"></div><div style="background:#F8FAFC;border-radius:10px;padding:14px;border:1.5px solid #E2E5F0"><div style="font-size:.78rem;font-weight:700;color:#374151;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Nueva transportadora</div><div style="display:flex;flex-direction:column;gap:8px"><input id="transpNewName" type="text" placeholder="Nombre (ej: LogiRapido)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none"><input id="transpNewKeys" type="text" placeholder="Claves por coma (ej: logirapido, logi)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none"><button onclick="addTransp()" style="align-self:flex-end;background:#2D3277;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif">+ Agregar</button></div></div></div></div>';
+    document.body.appendChild(modal);
+  }
+  modal.style.display='flex';
+  renderTranspList();
+}
 function closeTranspModal(){const modal=document.getElementById('transpModal');if(modal)modal.style.display='none';}
 function renderTranspList(){const el=document.getElementById('transpList');if(!el)return;const rows=Object.keys(COMP_KEYS).map(name=>{const isDefault=!!COMP_KEYS_DEFAULT[name];const safe=name.replace(/"/g,'&quot;');return'<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #F1F5F9"><span style="flex:1;font-size:.85rem;font-weight:600;color:#111827">'+name+'</span><span style="font-size:.72rem;color:#9CA3AF;flex:2">'+(COMP_KEYS[name]||[]).join(', ')+'</span>'+(isDefault?'<span style="font-size:.68rem;color:#9CA3AF;padding:2px 6px;background:#F3F4F6;border-radius:4px">base</span>':'<button data-n="'+safe+'" onclick="deleteTransp(this.dataset.n)" style="background:#FEE2E2;color:#B91C1C;border:none;border-radius:6px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-weight:700">Eliminar</button>')+'</div>';}).join('');el.innerHTML=rows||'<div style="color:#9CA3AF;font-size:.8rem;padding:8px 0">No hay transportadoras</div>';}
 
@@ -1358,7 +1371,7 @@ function doLogin(){
   // Escuchar si llega USERS_SYNC antes del timeout
   const _origSave=AUTH.saveUsers.bind(AUTH);
   AUTH.saveUsers=function(users){_origSave(users);AUTH.saveUsers=_origSave;setTimeout(_tryLogin,200);};
-  try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_USERS',{ts:Date.now()});}catch(e){}
+  try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_USERS',{ts:parseInt(localStorage.getItem('san1_users_ts')||'0')});}catch(e){}
   // Si en 6 segundos no llega nada, intentar con lo que hay
   setTimeout(()=>{AUTH.saveUsers=_origSave;_tryLogin();},6000);
 }
@@ -2407,8 +2420,8 @@ function toggleSettings(){
   }
 }
 function saveSettings(){const k=document.getElementById('ablyKeyInput').value.trim(),ch=document.getElementById('channelInput').value.trim()||'san1-patio';S.ablyKey=k;S.channelName=ch;localStorage.setItem('san1_ably_key',k);localStorage.setItem('san1_channel',ch);if(k){setupAbly(k,ch);toast('Conectando a Ably...','success');}else toast('Guardado (modo local)','warning');toggleSettings();}
-function clearAllData(){if(!confirm('Limpiar TODOS los datos para nuevo turno?'))return;if(!confirm('CONFIRMACION FINAL: Borrar todo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];S.dispatchedOla=0;S.isStateOwner=true;S.stateGen+=10000;renderLayout();saveLocal();const _clrTs2=Date.now();try{localStorage.setItem('san1_clear_ts',String(_clrTs2));}catch(e){}broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs2,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Turno limpiado','success');}
-function limpiarEstacionamientos(){if(!confirm('¿Limpiar todos los estacionamientos y dejarlos listos para el siguiente ciclo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];try{localStorage.removeItem('san1_hist');localStorage.removeItem('san1_actlog');}catch(e){}S.isStateOwner=true;S.stateGen+=10000;renderLayout();renderActivityFeed();saveLocal();const _clrTs=Date.now();try{localStorage.setItem('san1_clear_ts',String(_clrTs));}catch(e){}broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Estacionamientos limpiados','success');}
+function clearAllData(){if(!confirm('Limpiar TODOS los datos para nuevo turno?'))return;if(!confirm('CONFIRMACION FINAL: Borrar todo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];S.dispatchedOla=0;S.isStateOwner=true;S.stateGen=Date.now();renderLayout();saveLocal();const _clrTs2=Date.now();try{localStorage.setItem('san1_clear_ts',String(_clrTs2));}catch(e){}broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs2,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Turno limpiado','success');}
+function limpiarEstacionamientos(){if(!confirm('¿Limpiar todos los estacionamientos y dejarlos listos para el siguiente ciclo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];try{localStorage.removeItem('san1_hist');localStorage.removeItem('san1_actlog');}catch(e){}S.isStateOwner=true;S.stateGen=Date.now();renderLayout();renderActivityFeed();saveLocal();const _clrTs=Date.now();try{localStorage.setItem('san1_clear_ts',String(_clrTs));}catch(e){}broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Estacionamientos limpiados','success');}
 
 /* TOAST */
 function toast(msg,type,dur){type=type||'info';dur=dur||5000;const w=document.getElementById('toastWrap');const d=document.createElement('div');d.className='toast t-'+type;d.textContent=msg;d.onclick=()=>d.remove();w.appendChild(d);if(w.children.length>5)w.firstChild.remove();setTimeout(()=>{d.style.transition='opacity .3s';d.style.opacity='0';setTimeout(()=>d.remove(),300);},dur);}
@@ -2555,7 +2568,7 @@ function saveLocal(){S.stateGen++;S._stateTs=Date.now();try{const save={};ALL_BA
 function loadLocalState(){try{const raw=localStorage.getItem('san1_bays');if(raw){S.stateReady=true;const g=localStorage.getItem('san1_gen');if(g)S.stateGen=parseInt(g)||0;const _ts=localStorage.getItem('san1_state_ts');if(_ts)S._stateTs=parseInt(_ts)||0;// Solo es dueño del estado si fue guardado HOY — si es de ayer, espera estado fresco
 const _today=new Date();_today.setHours(0,0,0,0);const _todayMs=_today.getTime();S.isStateOwner=S._stateTs>=_todayMs;// Solo restaurar dispatchedOla si el estado es de HOY — ayer quedó en 1 y causaba bugs en TV
 const _dol=localStorage.getItem('san1_dispatch_ola');if(_dol!==null&&S._stateTs>=_todayMs)S.dispatchedOla=parseInt(_dol)||0;const data=JSON.parse(raw);ALL_BAYS.forEach(n=>{if(!data[n])return;const d=data[n],b=S.bays[n];b.status=d.status||'empty';b.queue=d.queue||[];b.currentIdx=d.currentIdx||0;b.entryTime=d.entryTime?new Date(d.entryTime):null;b.elapsedSeconds=d.elapsedSeconds||0;if(b.status==='occupied'&&b.entryTime)b.elapsedSeconds=Math.floor((Date.now()-b.entryTime.getTime())/1000);});}const rh=localStorage.getItem('san1_hist');if(rh)S.history=JSON.parse(rh);loadActivityLog();}catch(e){}// Force-empty if a clear happened after last save
-try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=parseInt(localStorage.getItem('san1_state_ts')||'0');if(_fc>0&&_fc>_fs){ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});S.stateGen=Math.max(S.stateGen,50000);S.isStateOwner=true;}}catch(e){}}
+try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=parseInt(localStorage.getItem('san1_state_ts')||'0');if(_fc>0&&_fc>_fs){ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});S.stateGen=Date.now();S.isStateOwner=true;}}catch(e){}}
 
 /* REAL-TIME */
 function setupBC(){try{S.bc=new BroadcastChannel('san1-v3');S.bc.onmessage=e=>{if(S.isBroadcasting)return;const t=e.data.type,d=e.data.data;if(t==='STATE')applyRemote(d);else if(t==='CSV_LOAD'){S.isStateOwner=false;applyRemote(d,true);}else if(t==='USERS_SYNC'){const _lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(d&&d.users&&d.ts>_lt){AUTH.saveUsers(d.users);}else if(d&&Array.isArray(d))AUTH.saveUsers(d);}else if(t==='REASSIGN_NOTIF')showReassignNotif(d);else if(t==='PLATE_CHANGE')applyPlateChange(d);else if(t==='WAVE_DISPATCH')handleWaveDispatch(d);else if(t==='DRIVER_CALL')handleDriverCall(d);else if(t==='REQUEST_STATE'){if(S.isStateOwner){broadcastState(true);AUTH.syncUsers();}}};}catch(e){}}
@@ -2571,8 +2584,8 @@ function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.
   S.ablyChannel.subscribe('CSV_LOAD',msg=>{if(S.isBroadcasting)return;S.isStateOwner=false;applyRemote(msg.data,true);});
   S.ablyChannel.subscribe('USERS_SYNC',msg=>{const _d=msg.data,_lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(_d&&_d.users&&_d.ts>_lt){AUTH.saveUsers(_d.users);}else if(_d&&Array.isArray(_d))AUTH.saveUsers(_d);});
   S.ablyChannel.subscribe('REQUEST_STATE',msg=>{if(S.isStateOwner){const _now=Date.now();if(!S._lastReqStateResp||_now-S._lastReqStateResp>5000){S._lastReqStateResp=_now;broadcastState(true);AUTH.syncUsers();}}});
-  S.ablyChannel.subscribe('FORCE_CLEAR',msg=>{const _d=msg.data||{};const _ts=_d.ts||Date.now();try{localStorage.setItem('san1_clear_ts',String(_ts));}catch(e){}ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];S.stateGen+=10000;renderLayout();renderActivityFeed();saveLocal();toast('Patio limpiado remotamente','info');});
-  S.ablyChannel.subscribe('REQUEST_USERS',msg=>{if(AUTH.getUsers().length>1)AUTH.syncUsers();});S.ably.connection.on('connected',()=>{document.getElementById('connDot').className='conn-dot ok';document.getElementById('connText').textContent='Sync activo';if(S._ablyReconnectTimer){clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=null;}toast('Sync activo','success');setTimeout(()=>{try{S.ablyChannel.publish('REQUEST_USERS',{ts:Date.now()});}catch(e){}},1200);let _rsr=0;const _rs=()=>{if(S._gotRemoteState||_rsr>8){if(!S._gotRemoteState&&!S.isStateOwner)S.isStateOwner=true;return;}_rsr++;try{S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}setTimeout(_rs,3000);};setTimeout(_rs,800);});S.ably.connection.on('disconnected',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Reconectando...';});S.ably.connection.on('suspended',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Sin señal - reintentando...';});S.ably.connection.on('failed',()=>{document.getElementById('connDot').className='conn-dot';document.getElementById('connText').textContent='Error sync - reconectando en 15s...';if(S._ablyReconnectTimer)clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=setTimeout(()=>{toast('Intentando reconectar...','warning');setupAbly(S.ablyKey||document.getElementById('ablyKey')?.value||'');},15000);});}catch(e){console.warn('Ably:',e);}}
+  S.ablyChannel.subscribe('FORCE_CLEAR',msg=>{const _d=msg.data||{};const _ts=_d.ts||Date.now();try{localStorage.setItem('san1_clear_ts',String(_ts));}catch(e){}ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];S.stateGen=_ts||Date.now();renderLayout();renderActivityFeed();saveLocal();toast('Patio limpiado remotamente','info');});
+  S.ablyChannel.subscribe('REQUEST_USERS',msg=>{const _myTs=parseInt(localStorage.getItem('san1_users_ts')||'0');const _reqTs=msg.data&&msg.data.ts?msg.data.ts:0;if(AUTH.getUsers().length>1&&_myTs>=_reqTs)AUTH.syncUsers();});S.ably.connection.on('connected',()=>{document.getElementById('connDot').className='conn-dot ok';document.getElementById('connText').textContent='Sync activo';if(S._ablyReconnectTimer){clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=null;}toast('Sync activo','success');setTimeout(()=>{try{S.ablyChannel.publish('REQUEST_USERS',{ts:parseInt(localStorage.getItem('san1_users_ts')||'0')});}catch(e){}},1200);let _rsr=0;const _rs=()=>{if(S._gotRemoteState||_rsr>8){if(!S._gotRemoteState&&!S.isStateOwner)S.isStateOwner=true;return;}_rsr++;try{S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}setTimeout(_rs,3000);};setTimeout(_rs,800);});S.ably.connection.on('disconnected',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Reconectando...';});S.ably.connection.on('suspended',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Sin señal - reintentando...';});S.ably.connection.on('failed',()=>{document.getElementById('connDot').className='conn-dot';document.getElementById('connText').textContent='Error sync - reconectando en 15s...';if(S._ablyReconnectTimer)clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=setTimeout(()=>{toast('Intentando reconectar...','warning');setupAbly(S.ablyKey||document.getElementById('ablyKey')?.value||'');},15000);});}catch(e){console.warn('Ably:',e);}}
 let _bsTimer=null;
 function broadcastState(immediate){
   // Debounce: agrupa llamadas seguidas en una sola — reduce hasta 80% el tráfico Ably
@@ -2815,36 +2828,3 @@ document.addEventListener('DOMContentLoaded',init);
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-green" style="flex:1;justify-content:center" onclick="saveCycles()">💾 Guardar</button>
       <button class="btn btn-gray" style="flex:1;justify-content:center" onclick="closeModal('cycleModal')">Cerrar</button>
-<!-- TRANSPORTADORA MODAL -->
-<div id="transpModal" class="overlay" style="display:none;z-index:1100" onclick="if(event.target===this)closeTranspModal()">
-  <div class="modal" style="max-width:520px;width:95%">
-    <div class="modal-hdr"><span style="font-weight:800;font-size:1rem;color:#111827">&#x1F69B; Gestionar Transportadoras</span><button class="btn-icon" onclick="closeTranspModal()">&#x2715;</button></div>
-    <div style="padding:16px 20px">
-      <div id="transpList" style="max-height:240px;overflow-y:auto;margin-bottom:16px"></div>
-      <div style="background:#F8FAFC;border-radius:10px;padding:14px;border:1.5px solid #E2E5F0">
-        <div style="font-size:.78rem;font-weight:700;color:#374151;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Nueva transportadora</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <input id="transpNewName" type="text" placeholder="Nombre (ej: LogiRapido)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none">
-          <input id="transpNewKeys" type="text" placeholder="Claves separadas por coma (ej: logirapido, logi)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none">
-          <button onclick="addTransp()" class="btn btn-primary btn-sm" style="align-self:flex-end">+ Agregar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-<div id="transpModal" class="overlay" style="display:none;z-index:1200" onclick="if(event.target===this)closeTranspModal()">
-  <div class="modal" style="max-width:500px;width:95%">
-    <div class="modal-hdr"><span style="font-weight:800;font-size:1rem;color:#111827">&#x1F69B; Gestionar Transportadoras</span><button class="btn-icon" onclick="closeTranspModal()">&#x2715;</button></div>
-    <div style="padding:16px 20px">
-      <div id="transpList" style="max-height:240px;overflow-y:auto;margin-bottom:16px"></div>
-      <div style="background:#F8FAFC;border-radius:10px;padding:14px;border:1.5px solid #E2E5F0">
-        <div style="font-size:.78rem;font-weight:700;color:#374151;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Nueva transportadora</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <input id="transpNewName" type="text" placeholder="Nombre (ej: LogiRapido)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none">
-          <input id="transpNewKeys" type="text" placeholder="Claves separadas por coma (ej: logirapido, logi)" style="border:1.5px solid #E2E5F0;border-radius:8px;padding:8px 12px;font-size:.85rem;font-family:Inter,sans-serif;outline:none">
-          <button onclick="addTransp()" class="btn btn-primary btn-sm" style="align-self:flex-end">+ Agregar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>

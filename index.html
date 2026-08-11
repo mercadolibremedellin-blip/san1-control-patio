@@ -2445,10 +2445,12 @@ function renderCoordDash(){
     container.appendChild(card);
     setTimeout(()=>{const _qc=document.getElementById(_qrId);if(_qc&&!_qc.dataset.done){try{new QRCode(_qc,{text:'E'+item.bayNum+','+(item.v.ola||1),width:120,height:120,colorDark:'#1F2937',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}}_qc&&(_qc.dataset.done='1');},50);
   });
+  // Re-apply active filter after re-render
+  if(S._coordFilter)setCoordFilter(S._coordFilter,true);
 }
 
-function setCoordFilter(type){
-  if(S._coordFilter===type){S._coordFilter=null;}else{S._coordFilter=type;}
+function setCoordFilter(type,skipToggle){
+  if(!skipToggle){if(S._coordFilter===type){S._coordFilter=null;}else{S._coordFilter=type;}}
   const _f=S._coordFilter;
   // Update chip visual
   document.querySelectorAll('.coord-filter-chip').forEach(c=>c.classList.remove('coord-filter-active'));
@@ -2463,7 +2465,7 @@ function setCoordFilter(type){
   });
 }
 
-function refreshCoordStats(){const u=AUTH.current;if(!u||u.role!=='coordinator')return;const trsp=normalizeTransp(u.transportadora||'');let occ=0,wait=0;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.queue.forEach((v,qi)=>{if(normalizeTransp(v.transportadora)===trsp){if(qi===b.currentIdx){if(b.status==='occupied')occ++;else if(b.status==='waiting')wait++;}else wait++;}});});const done=S.history.filter(h=>normalizeTransp(h.transportadora)===trsp).length;const el=document.getElementById('coordStats');if(el)el.innerHTML='<div class="cds" style="background:rgba(220,38,38,.2);color:#FCA5A5">En carga: '+occ+'</div><div class="cds" style="background:rgba(29,78,216,.2);color:#93C5FD">En espera: '+wait+'</div><div class="cds" style="background:rgba(21,128,61,.2);color:#86EFAC">Completadas: '+done+'</div>';ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='occupied'&&b.entryTime){const el=document.getElementById('ct'+n);if(el)el.textContent=fmt(b.elapsedSeconds);}});}
+function refreshCoordStats(){const u=AUTH.current;if(!u||u.role!=='coordinator')return;const trsp=normalizeTransp(u.transportadora||'');let occ=0,inDoca=0,queued=0;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.queue.forEach((v,qi)=>{if(qi<b.currentIdx)return;if(normalizeTransp(v.transportadora)===trsp){if(qi===b.currentIdx){if(b.status==='occupied')occ++;else inDoca++;}else queued++;}});});const done=S.history.filter(h=>normalizeTransp(h.transportadora)===trsp).length;const el=document.getElementById('coordStats');if(el){const _af=S._coordFilter||'';el.innerHTML='<button class="coord-filter-chip'+(_af==='occupied'?' coord-filter-active':'')+'" data-filter="occupied" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(220,38,38,.15);color:#DC2626;border-color:rgba(220,38,38,.25)">En carga: '+occ+'</button>'+'<button class="coord-filter-chip'+(_af==='active'?' coord-filter-active':'')+'" data-filter="active" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(29,78,216,.1);color:#1D4ED8;border-color:rgba(29,78,216,.2)">En espera: '+(inDoca+queued)+'</button>'+'<button class="coord-filter-chip'+(_af==='done'?' coord-filter-active':'')+'" data-filter="done" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(99,102,241,.1);color:#6366F1;border-color:rgba(99,102,241,.2)">Completadas: '+done+'</button>';}ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='occupied'&&b.entryTime){const el=document.getElementById('ct'+n);if(el)el.textContent=fmt(b.elapsedSeconds);}});}
 
 /* CHANGE PLATE */
 function openChangePlate(bayNum,queueIdx){const b=S.bays[bayNum];if(!b)return;const v=b.queue[queueIdx];if(!v)return;S.changePlateTarget={bayNum,queueIdx};document.getElementById('cpInfo').textContent='Doca '+bayNum+' - Ola '+(v.ola||'-');document.getElementById('cpOldPlate').textContent=v.patente||'(sin placa)';document.getElementById('cpRouteInfo').textContent='Ruta: '+(v.ruta||'-')+' - '+(v.transportadora||'');document.getElementById('cpNewPlate').value='';document.getElementById('changePlateModal').classList.add('show');setTimeout(()=>document.getElementById('cpNewPlate').focus(),200);}

@@ -1262,8 +1262,8 @@ const WAVE_BG={0:'#4B5563',1:'#1D4ED8',2:'#D4A800',3:'#B45309',4:'#6D28D9',5:'#B
 /* AUTH */
 const AUTH={
   current:null,UK:'san1_users_v2',SK:'san1_session_v2',DSK:'san1_driver_session',
-  getUsers(){return JSON.parse(localStorage.getItem(this.UK)||'[]');},
-  saveUsers(u){localStorage.setItem(this.UK,JSON.stringify(u));localStorage.setItem('san1_users_ts',String(Date.now()));},
+  getUsers(){const _bl=['Distransa1','Minutos99'];return JSON.parse(localStorage.getItem(this.UK)||'[]').filter(u=>!_bl.includes(u.username));},
+  saveUsers(u){const _bl=['Distransa1','Minutos99'];u=(u||[]).filter(x=>!_bl.includes(x.username));localStorage.setItem(this.UK,JSON.stringify(u));localStorage.setItem('san1_users_ts',String(Date.now()));},
   syncUsers(){const _u=this.getUsers();if(!_u||_u.length===0)return;const _ts=parseInt(localStorage.getItem('san1_users_ts')||'0')||Date.now();localStorage.setItem('san1_users_ts',String(_ts));const _p={users:_u,ts:_ts};try{S.bc&&S.bc.postMessage({type:'USERS_SYNC',data:_p});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('USERS_SYNC',_p);}catch(e){}},
   hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h)^s.charCodeAt(i);return(h>>>0).toString(16);},
   hp(p){return this.hash('san1_2024_'+p);},

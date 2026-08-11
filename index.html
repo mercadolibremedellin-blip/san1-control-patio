@@ -325,10 +325,10 @@ html,body{height:100%;background:var(--ml-light);color:#1F2937;
 .bay.status-occupied{background:#FFF1F1;border-left-color:#DC2626;color:#7F1D1D}
 
 /* Waiting — ola colors as left accent only */
-.bay.status-waiting.ola-1{background:#EFF6FF;border-left-color:#1D4ED8;color:#1E3A8A}
-.bay.status-waiting.ola-2{background:#FFFBEB;border-left-color:#D97706;color:#78350F}
-.bay.status-waiting.ola-3{background:#FEF3C7;border-left-color:#B45309;color:#78350F}
-.bay.status-waiting.ola-4{background:#F5F3FF;border-left-color:#6D28D9;color:#4C1D95}
+.bay.status-waiting.ola-1{background:#F9FAFB;border-left-color:#9CA3AF;color:#374151}
+.bay.status-waiting.ola-2{background:#EFF6FF;border-left-color:#1D4ED8;color:#1E3A8A}
+.bay.status-waiting.ola-3{background:#FEFCE8;border-left-color:#D97706;color:#78350F}
+.bay.status-waiting.ola-4{background:#F5F3FF;border-left-color:#7C3AED;color:#4C1D95}
 .bay.status-waiting.ola-5{background:#FDF2F8;border-left-color:#BE185D;color:#831843}
 .bay.status-waiting.ola-6{background:#ECFEFF;border-left-color:#0E7490;color:#164E63}
 .bay.status-waiting.ola-0{background:#F8F9FC;border-left-color:#4B5563;color:#374151}
@@ -459,8 +459,8 @@ html,body{height:100%;background:var(--ml-light);color:#1F2937;
   font-weight:800;font-size:.88rem;color:#fff;transition:transform .15s;font-family:'Inter',sans-serif;letter-spacing:.01em}
 .wave-btn:hover{transform:scale(1.05)}
 .wave-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
-.wave-btn-1{background:#1D4ED8}.wave-btn-2{background:#D97706}.wave-btn-3{background:#B45309}
-.wave-btn-4{background:#6D28D9}.wave-btn-5{background:#BE185D}.wave-btn-6{background:#0E7490}
+.wave-btn-1{background:#9CA3AF}.wave-btn-2{background:#1D4ED8}.wave-btn-3{background:#D97706}
+.wave-btn-4{background:#7C3AED}.wave-btn-5{background:#BE185D}.wave-btn-6{background:#0E7490}
 
 /* DRIVER OVERLAY */
 .driver-overlay{display:none;position:fixed;inset:0;background:rgba(45,50,119,.50);
@@ -1714,7 +1714,7 @@ function refreshBayEl(n,el){
     if(bay.status==='occupied'){const _spr=cur?cur.spr||0:0;let tc=timerClass(bay.elapsedSeconds,_spr);h+='<div class="'+tc+'" id="t'+n+'">'+fmt(bay.elapsedSeconds)+'</div>';}
     if(bay.status==='prein'){h+='<div style="font-size:.62rem;font-weight:800;color:#6EE7B7;background:rgba(0,0,0,.3);border-radius:3px;padding:1px 3px;margin-top:2px">EN PATIO</div>';}
     const rem=bay.queue.length-bay.currentIdx-1;if(rem>0)h+='<div class="bqueue">+'+rem+'</div>';
-    if(cur.ola)h+='<div class="bola-tag">Ola '+cur.ola+'</div>';
+    if(cur.ola)h+='<div class="bola-tag" style="background:'+WAVE_BG[cur.ola||0]+';color:#fff;opacity:.9">Ola '+cur.ola+'</div>';
   }
   el.innerHTML=h;
 }

@@ -2380,8 +2380,8 @@ function renderCoordDash(){
   const inDoca=items.filter(x=>x.st==='waiting'||x.st==='available').length;
   const queued=items.filter(x=>x.st==='queued').length;
   document.getElementById('coordStats').innerHTML=
-    '<button class="coord-filter-chip" data-filter="occupied" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(220,38,38,.15);color:#DC2626;border-color:rgba(220,38,38,.25)">En carga: '+occ+'</button>'+
-    '<button class="coord-filter-chip" data-filter="active" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(29,78,216,.1);color:#1D4ED8;border-color:rgba(29,78,216,.2)">En espera: '+(inDoca+queued)+'</button>'+
+    '<button class="coord-filter-chip" data-filter="free" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(5,150,105,.12);color:#065F46;border-color:rgba(5,150,105,.25)">Doca libre: '+inDoca+'</button>'+
+    '<button class="coord-filter-chip" data-filter="active" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(29,78,216,.1);color:#1D4ED8;border-color:rgba(29,78,216,.2)">En espera: '+queued+'</button>'+
     '<button class="coord-filter-chip" data-filter="done" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(99,102,241,.1);color:#6366F1;border-color:rgba(99,102,241,.2)">Completadas: '+doneItems.length+'</button>';
   // restore active filter visual
   const _af=S._coordFilter;if(_af){const _ch=document.querySelector('[data-filter="'+_af+'"]');if(_ch)_ch.classList.add('coord-filter-active');}
@@ -2397,11 +2397,8 @@ function renderCoordDash(){
     if(item.st==='occupied'){
       stLabel='En carga';stCls='rcst-occ';cardCls='rc-occ';
       docaBadge='<span style="'+_bdBase+'background:#FEF2F2;color:#991B1B;border:1px solid #FECACA"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#DC2626"/></svg>Doca ocupada</span>';
-    }else if(item.st==='waiting'){
-      stLabel='Pendiente llegada';stCls='rcst-wait';
-      docaBadge='<span style="'+_bdBase+'background:#FFFBEB;color:#92400E;border:1px solid #FDE68A"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#D97706"/></svg>Doca libre &mdash; driver pendiente de llegada</span>';
-    }else if(item.st==='available'){
-      stLabel='Disponible';stCls='rcst-avail';
+    }else if(item.st==='waiting'||item.st==='available'){
+      stLabel='Doca libre';stCls='rcst-avail';
       docaBadge='<span style="'+_bdBase+'background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#059669"/></svg>Doca libre</span>';
     }else{
       stLabel='En cola';stCls='rcst-queue';
@@ -2459,13 +2456,13 @@ function setCoordFilter(type,skipToggle){
   document.querySelectorAll('#coordRoutes > *').forEach(card=>{
     if(!_f){card.style.display='';return;}
     const st=card.dataset.st||'';
-    if(_f==='occupied')card.style.display=st==='occupied'?'':'none';
-    else if(_f==='active')card.style.display=(st==='waiting'||st==='available'||st==='queued')?'':'none';
+    if(_f==='free')card.style.display=(st==='available'||st==='waiting')?'':'none';
+    else if(_f==='active')card.style.display=st==='queued'?'':'none';
     else if(_f==='done')card.style.display='none';// completadas no tienen tarjeta activa
   });
 }
 
-function refreshCoordStats(){const u=AUTH.current;if(!u||u.role!=='coordinator')return;const trsp=normalizeTransp(u.transportadora||'');let occ=0,inDoca=0,queued=0;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.queue.forEach((v,qi)=>{if(qi<b.currentIdx)return;if(normalizeTransp(v.transportadora)===trsp){if(qi===b.currentIdx){if(b.status==='occupied')occ++;else inDoca++;}else queued++;}});});const done=S.history.filter(h=>normalizeTransp(h.transportadora)===trsp).length;const el=document.getElementById('coordStats');if(el){const _af=S._coordFilter||'';el.innerHTML='<button class="coord-filter-chip'+(_af==='occupied'?' coord-filter-active':'')+'" data-filter="occupied" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(220,38,38,.15);color:#DC2626;border-color:rgba(220,38,38,.25)">En carga: '+occ+'</button>'+'<button class="coord-filter-chip'+(_af==='active'?' coord-filter-active':'')+'" data-filter="active" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(29,78,216,.1);color:#1D4ED8;border-color:rgba(29,78,216,.2)">En espera: '+(inDoca+queued)+'</button>'+'<button class="coord-filter-chip'+(_af==='done'?' coord-filter-active':'')+'" data-filter="done" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(99,102,241,.1);color:#6366F1;border-color:rgba(99,102,241,.2)">Completadas: '+done+'</button>';}ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='occupied'&&b.entryTime){const el=document.getElementById('ct'+n);if(el)el.textContent=fmt(b.elapsedSeconds);}});}
+function refreshCoordStats(){const u=AUTH.current;if(!u||u.role!=='coordinator')return;const trsp=normalizeTransp(u.transportadora||'');let occ=0,inDoca=0,queued=0;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.queue.forEach((v,qi)=>{if(qi<b.currentIdx)return;if(normalizeTransp(v.transportadora)===trsp){if(qi===b.currentIdx){if(b.status==='occupied')occ++;else inDoca++;}else queued++;}});});const done=S.history.filter(h=>normalizeTransp(h.transportadora)===trsp).length;const el=document.getElementById('coordStats');if(el){const _af=S._coordFilter||'';el.innerHTML='<button class="coord-filter-chip'+(_af==='free'?' coord-filter-active':'')+'" data-filter="free" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(5,150,105,.12);color:#065F46;border-color:rgba(5,150,105,.25)">Doca libre: '+inDoca+'</button>'+'<button class="coord-filter-chip'+(_af==='active'?' coord-filter-active':'')+'" data-filter="active" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(29,78,216,.1);color:#1D4ED8;border-color:rgba(29,78,216,.2)">En espera: '+queued+'</button>'+'<button class="coord-filter-chip'+(_af==='done'?' coord-filter-active':'')+'" data-filter="done" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(99,102,241,.1);color:#6366F1;border-color:rgba(99,102,241,.2)">Completadas: '+done+'</button>';}ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='occupied'&&b.entryTime){const el=document.getElementById('ct'+n);if(el)el.textContent=fmt(b.elapsedSeconds);}});}
 
 /* CHANGE PLATE */
 function openChangePlate(bayNum,queueIdx){const b=S.bays[bayNum];if(!b)return;const v=b.queue[queueIdx];if(!v)return;S.changePlateTarget={bayNum,queueIdx};document.getElementById('cpInfo').textContent='Doca '+bayNum+' - Ola '+(v.ola||'-');document.getElementById('cpOldPlate').textContent=v.patente||'(sin placa)';document.getElementById('cpRouteInfo').textContent='Ruta: '+(v.ruta||'-')+' - '+(v.transportadora||'');document.getElementById('cpNewPlate').value='';document.getElementById('changePlateModal').classList.add('show');setTimeout(()=>document.getElementById('cpNewPlate').focus(),200);}

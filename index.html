@@ -1276,9 +1276,7 @@ const AUTH={
       {id:'seed_humadea',username:'Humadea1',name:'Humadea',role:'coordinator',transportadora:'Humadea',pass:'humadea2026'},
       {id:'seed_logysto',username:'Logysto1',name:'Logysto',role:'coordinator',transportadora:'Logysto',pass:'logysto2026'},
       {id:'seed_viotrans',username:'Viotrans1',name:'Viotrans',role:'coordinator',transportadora:'Viotrans',pass:'viotrans2026'},
-      {id:'seed_distransa',username:'Distransa1',name:'Distransa',role:'coordinator',transportadora:'Distransa',pass:'distransa2026'},
       {id:'seed_cargaparamo',username:'CargaParamo1',name:'Carga Paramo',role:'coordinator',transportadora:'Carga Paramo',pass:'cargaparamo2026'},
-      {id:'seed_99minutos',username:'Minutos99',name:'99 Minutos',role:'coordinator',transportadora:'99 Minutos',pass:'minutos2026'},
       {id:'seed_crowdmeli',username:'CrowdMeli1',name:'Crowd Meli',role:'coordinator',transportadora:'CrowdMeli',pass:'crowdmeli2026'},
       {id:'seed_meliextra',username:'MeliExtra',name:'MeliExtra',role:'coordinator',transportadora:'Crowd Meli',pass:'meliextra2026'},
     ];
@@ -1294,7 +1292,7 @@ const AUTH={
         else if(x.ph!==this.hp(d.pass)){x.ph=this.hp(d.pass);changed=true;}/* actualizar contraseña si cambió en SEED */
       });
     }
-    if(changed)localStorage.setItem(this.UK,JSON.stringify(u));
+    if(changed)this.saveUsers(u);
     const sid=localStorage.getItem(this.SK);
     if(sid){const x=u.find(x=>x.id===sid&&x.active);if(x){this.current=x;return 'staff';}}
     const dp=localStorage.getItem(this.DSK);if(dp)return 'driver:'+dp;

@@ -1000,7 +1000,18 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
             <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Zona</th>
             <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Empresa</th>
             <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Muelle</th>
-            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Tipo</th><th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Pos.</th>
+            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Tipo</th>
+            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Pos.</th>
+          </tr>
+          <tr id="pendingFilterRow" style="background:#F8FAFC">
+            <td style="padding:2px 4px"><select id="pf-ola" onchange="applyPendingFilters()" style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;background:#fff;color:#374151"><option value="">Todas</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></td>
+            <td style="padding:2px 4px"><input id="pf-placa" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;box-sizing:border-box"></td>
+            <td style="padding:2px 4px"><input id="pf-ruta" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;box-sizing:border-box"></td>
+            <td style="padding:2px 4px"><input id="pf-zona" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;box-sizing:border-box"></td>
+            <td style="padding:2px 4px"><input id="pf-emp" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;box-sizing:border-box"></td>
+            <td style="padding:2px 4px"></td>
+            <td style="padding:2px 4px"><select id="pf-tipo" onchange="applyPendingFilters()" style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:2px 4px;background:#fff;color:#374151"><option value="">Todos</option><option>Riesgo</option><option>Lejana</option><option>Híbrida</option><option>Automovil</option></select></td>
+            <td style="padding:2px 4px;text-align:right"><button onclick="clearPendingFilters()" title="Limpiar filtros" style="font-size:.6rem;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:5px;padding:1px 5px;cursor:pointer;color:#64748B">✕</button></td>
           </tr>
         </thead>
         <tbody id="pendingQueueBody"></tbody>
@@ -1622,6 +1633,35 @@ function renderLayout(){
   ALL_BAYS.forEach(n=>{grid.appendChild(makeBayEl(n));});
   renderActivityFeed();updateStats();renderPendingQueue();
 }
+
+function applyPendingFilters(){
+  const fOla=(document.getElementById('pf-ola').value||'').trim();
+  const fPlaca=(document.getElementById('pf-placa').value||'').trim().toUpperCase();
+  const fRuta=(document.getElementById('pf-ruta').value||'').trim().toUpperCase();
+  const fZona=(document.getElementById('pf-zona').value||'').trim().toUpperCase();
+  const fEmp=(document.getElementById('pf-emp').value||'').trim().toUpperCase();
+  const fTipo=(document.getElementById('pf-tipo').value||'').trim().toUpperCase();
+  let vis=0;
+  document.querySelectorAll('#pendingQueueBody tr').forEach(tr=>{
+    const show=
+      (!fOla||tr.dataset.ola===fOla)&&
+      (!fPlaca||tr.dataset.placa.includes(fPlaca))&&
+      (!fRuta||tr.dataset.ruta.includes(fRuta))&&
+      (!fZona||tr.dataset.zona.includes(fZona))&&
+      (!fEmp||tr.dataset.emp.includes(fEmp))&&
+      (!fTipo||tr.dataset.tipo.includes(fTipo));
+    tr.style.display=show?'':'none';
+    if(show)vis++;
+  });
+  const cnt=document.getElementById('pendingQueueCount');
+  if(cnt){const total=document.querySelectorAll('#pendingQueueBody tr').length;cnt.textContent=vis<total?'('+vis+' / '+total+' vh)':'('+total+' vh)';}
+}
+function clearPendingFilters(){
+  ['pf-ola','pf-tipo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['pf-placa','pf-ruta','pf-zona','pf-emp'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  applyPendingFilters();
+}
+
 function renderPendingQueue(){
   const rows=[],preinRows=[];
   ALL_BAYS.forEach(n=>{
@@ -1660,6 +1700,12 @@ function renderPendingQueue(){
       const tr=document.createElement('tr');
       tr.style.borderBottom='1px solid var(--bdr)';
       if(posLabel==='Próximo')tr.style.background='rgba(29,78,216,.08)';
+      tr.dataset.ola=v.ola||'';
+      tr.dataset.placa=(v.patente||'').toUpperCase();
+      tr.dataset.ruta=(v.ruta||'').toUpperCase();
+      tr.dataset.zona=(v.zona||'').toUpperCase();
+      tr.dataset.emp=(v.transportadora||'').toUpperCase();
+      tr.dataset.tipo=(v.tipoRuta||'').toUpperCase();
       tr.innerHTML=
         '<td style="padding:3px 8px"><span style="background:'+WAVE_BG[v.ola||0]+';color:#fff;padding:1px 6px;border-radius:3px;font-weight:700;font-size:.72rem">Ola '+(v.ola||'-')+'</span></td>'+
         '<td style="padding:3px 8px;font-weight:800;letter-spacing:.5px;color:#111827">'+(v.patente||'-')+'</td>'+

@@ -616,6 +616,9 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
 .coord-stats {
   display: flex; gap: 8px; flex-wrap: wrap;
 }
+.coord-filter-chip{border:1.5px solid transparent;border-radius:20px;padding:4px 14px;font-size:.75rem;font-weight:600;cursor:pointer;transition:all .15s;background:none}
+.coord-filter-chip:hover{filter:brightness(.88);transform:scale(1.02)}
+.coord-filter-active{box-shadow:0 0 0 2.5px currentColor!important;font-weight:700!important}
 .cds {
   padding: 4px 10px; border-radius: 20px;
   font-size: .68rem; font-weight: 700;
@@ -2328,9 +2331,9 @@ function renderCoordDash(){
   const inDoca=items.filter(x=>x.st==='waiting'||x.st==='available').length;
   const queued=items.filter(x=>x.st==='queued').length;
   document.getElementById('coordStats').innerHTML=
-    '<button class="coord-filter-chip" data-filter="occupied" onclick="setCoordFilter('occupied')" style="background:rgba(220,38,38,.15);color:#DC2626;border-color:rgba(220,38,38,.25)">En carga: '+occ+'</button>'+
-    '<button class="coord-filter-chip" data-filter="active" onclick="setCoordFilter('active')" style="background:rgba(29,78,216,.1);color:#1D4ED8;border-color:rgba(29,78,216,.2)">En espera: '+(inDoca+queued)+'</button>'+
-    '<button class="coord-filter-chip" data-filter="done" onclick="setCoordFilter('done')" style="background:rgba(99,102,241,.1);color:#6366F1;border-color:rgba(99,102,241,.2)">Completadas: '+doneItems.length+'</button>';
+    '<button class="coord-filter-chip" data-filter="occupied" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(220,38,38,.15);color:#DC2626;border-color:rgba(220,38,38,.25)">En carga: '+occ+'</button>'+
+    '<button class="coord-filter-chip" data-filter="active" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(29,78,216,.1);color:#1D4ED8;border-color:rgba(29,78,216,.2)">En espera: '+(inDoca+queued)+'</button>'+
+    '<button class="coord-filter-chip" data-filter="done" onclick="setCoordFilter(this.dataset.filter)" style="background:rgba(99,102,241,.1);color:#6366F1;border-color:rgba(99,102,241,.2)">Completadas: '+doneItems.length+'</button>';
   // restore active filter visual
   const _af=S._coordFilter;if(_af){const _ch=document.querySelector('[data-filter="'+_af+'"]');if(_ch)_ch.classList.add('coord-filter-active');}
   items.sort((a,z)=>({'occupied':0,'available':1,'waiting':2,'queued':3}[a.st]||9)-({'occupied':0,'available':1,'waiting':2,'queued':3}[z.st]||9)||(a.v.ola||9)-(z.v.ola||9));

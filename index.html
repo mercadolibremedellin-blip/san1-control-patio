@@ -475,14 +475,22 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
 ══════════════════════════════════════════════ */
 @media (max-width: 640px) {
 
-  /* ── LOGIN: stack vertically, keep yellow panel as top banner ── */
+  /* ── LOGIN: yellow top banner + clean form below ── */
   #loginOverlay { flex-direction: column }
-  .login-left-panel { width: 100%; min-height: 90px; padding: 20px 24px; flex-direction: row; gap: 14px; justify-content: flex-start }
-  .login-left-panel h1 { font-size: 2rem; margin: 0 }
-  .llp-icon { font-size: 1.8rem }
-  .llp-sub { font-size: .75rem; text-align: left }
-  .login-box { padding: 24px 20px }
+  .login-left-panel {
+    width: 100%; min-height: 80px; padding: 16px 20px;
+    flex-direction: row; gap: 12px;
+    justify-content: flex-start; align-items: center;
+  }
+  .login-left-panel h1 { font-size: 1.8rem; margin: 0; letter-spacing: -.01em }
+  .llp-icon { font-size: 1.6rem }
+  .llp-sub { font-size: .72rem; text-align: left; opacity: .8 }
+  .login-box { padding: 20px 20px 28px }
   .login-box > * { max-width: 100% }
+  /* Hide redundant truck+title already shown in yellow banner */
+  .login-logo { display: none }
+  .login-title { display: none }
+  .login-sub { margin-top: 0; font-size: .82rem }
 
   /* ── HEADER TOP ── */
   .hdr-top { min-height: 44px; padding: 0 10px; gap: 6px }

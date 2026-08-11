@@ -676,9 +676,12 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
   text-transform: uppercase; letter-spacing: .05em;
   margin-bottom: 8px;
 }
-.rcst-occ  { background: #FEE2E2; color: #B91C1C }
-.rcst-wait { background: #EFF6FF; color: #1D4ED8 }
-.rcst-done { background: #F0FDF4; color: #15803D }
+.rcst-occ   { background: #FEE2E2; color: #B91C1C }
+.rcst-wait  { background: #EFF6FF; color: #1D4ED8 }
+.rcst-avail { background: #DCFCE7; color: #15803D; animation: pulse-badge 1.4s infinite }
+.rcst-queue { background: #FEF3C7; color: #B45309 }
+.rcst-done  { background: #F0FDF4; color: #15803D }
+@keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:.65} }
 
 .rc-wave {
   display: inline-block;
@@ -2290,14 +2293,93 @@ function showDriverReadyAlert(bayNum){const el=document.getElementById('driverRe
 function closeDriverReadyAlert(){document.getElementById('driverReadyAlert').style.display='none';}
 
 /* COORDINATOR */
-function renderCoordDash(){const u=AUTH.current;if(!u)return;const trsp=normalizeTransp(u.transportadora||'');document.getElementById('coordTitle').textContent='Mis Docas - '+trsp;document.getElementById('coordSubtitle').textContent='Bienvenido/a, '+u.name;const items=[];ALL_BAYS.forEach(n=>{const b=S.bays[n];b.queue.forEach((v,qi)=>{if(normalizeTransp(v.transportadora)===trsp){const isCur=qi===b.currentIdx;let st='queued';if(isCur){if(b.status==='occupied')st='occupied';else if(b.status==='waiting')st='waiting';else st=b.status;}items.push({bayNum:n,v,qi,isCur,st,bay:b});}});});const doneItems=S.history.filter(h=>normalizeTransp(h.transportadora)===trsp);if(!items.length&&!doneItems.length){document.getElementById('coordRoutes').innerHTML='';document.getElementById('coordEmpty').style.display='block';document.getElementById('coordStats').innerHTML='';return;}document.getElementById('coordEmpty').style.display='none';const occ=items.filter(x=>x.st==='occupied').length,wait=items.filter(x=>x.st==='waiting'||x.st==='queued').length;document.getElementById('coordStats').innerHTML='<div class="cds" style="background:rgba(220,38,38,.2);color:#FCA5A5">En carga: '+occ+'</div><div class="cds" style="background:rgba(29,78,216,.2);color:#93C5FD">En espera: '+wait+'</div><div class="cds" style="background:rgba(21,128,61,.2);color:#86EFAC">Completadas: '+doneItems.length+'</div>';items.sort((a,z)=>({'occupied':0,'waiting':1,'queued':2,'done':3}[a.st]||9)-({'occupied':0,'waiting':1,'queued':2,'done':3}[z.st]||9)||(a.v.ola||9)-(z.v.ola||9));const container=document.getElementById('coordRoutes');container.innerHTML='';items.forEach(item=>{const card=document.createElement('div');const ola=item.v.ola||0;let stLabel='',stCls='',cardCls='';if(item.st==='occupied'){stLabel='En carga';stCls='rcst-occ';cardCls='rc-occ';}else if(item.st==='waiting'){stLabel='En espera';stCls='rcst-wait';}else if(item.st==='queued'){stLabel='Ola '+ola+' (cola)';stCls='rcst-wait';}else{stLabel='Completado';stCls='rcst-done';}const canChange=item.st==='waiting'||item.st==='queued';card.className='route-card rc-ola'+ola+' '+cardCls;card.innerHTML='<div class="rc-doca">'+item.bayNum+'</div>'
-    +'<div class="rc-plate">'+(item.v.patente||'Sin placa')+'</div>'
-    +'<div class="rc-route">'+(item.v.ruta||'-')+'</div>'
-    +(item.v.tipoRuta?'<div style="margin-bottom:4px"><span class="'+trClass(item.v.tipoRuta)+'" style="padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:700">'+item.v.tipoRuta+'</span></div>':'')+(item.v.zona?'<div class="rc-company" style="color:#A78BFA">&#x1F4CD; Zona: '+item.v.zona+'</div>':'')+(item.v.paradas?'<div class="rc-company" style="color:#6EE7B7">&#x1F6D1; Paradas: '+item.v.paradas+'</div>':'')+'<div class="rc-company">'+(item.v.transportadora||'')+'</div><span class="rc-status '+stCls+'">'+stLabel+'</span><div class="rc-wave" style="background:'+WAVE_BG[ola]+'">Ola '+ola+'</div>'+(item.st==='occupied'&&item.bay.entryTime?'<div id="ct'+item.bayNum+'" style="font-family:monospace;font-size:.78rem;color:#FCA5A5;margin-bottom:8px">'+fmt(item.bay.elapsedSeconds)+'</div>':'')+'<div class="rc-actions">'+(canChange?'<button class="btn btn-teal btn-sm" onclick="openChangePlate('+item.bayNum+','+item.qi+')">Cambiar Conductor</button>':'')+'</div>';const _qrId='coord-qr-'+item.bayNum+'-'+item.qi;
-    card.innerHTML+='<div style="margin-top:8px"><button class="btn btn-sm" style="background:#F1F5F9;color:#374151;border:1px solid var(--ml-border);width:100%;justify-content:center;font-size:.65rem" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.textContent=this.nextElementSibling.style.display===\'block\'?\'▲ Ocultar QR\':\'📷 Ver QR para conductor\'">📷 Ver QR para conductor</button><div id="'+_qrId+'" style="display:none;text-align:center;padding:8px 0;background:#fff;border-radius:8px;margin-top:4px"></div></div>';
+function renderCoordDash(){
+  const u=AUTH.current;if(!u)return;
+  const trsp=normalizeTransp(u.transportadora||'');
+  document.getElementById('coordTitle').textContent='Mis Docas - '+trsp;
+  document.getElementById('coordSubtitle').textContent='Bienvenido/a, '+u.name;
+  const items=[];
+  ALL_BAYS.forEach(n=>{
+    const b=S.bays[n];
+    b.queue.forEach((v,qi)=>{
+      if(qi<b.currentIdx)return;// ya salió
+      if(normalizeTransp(v.transportadora)===trsp){
+        const isCur=qi===b.currentIdx;
+        let st='queued';
+        if(isCur){
+          if(b.status==='occupied')st='occupied';
+          else if(b.status==='waiting')st='waiting';
+          else if(b.status==='empty'||b.status==='prein')st='available';
+          else st=b.status;
+        }
+        items.push({bayNum:n,v,qi,isCur,st,bay:b});
+      }
+    });
+  });
+  const doneItems=S.history.filter(h=>normalizeTransp(h.transportadora)===trsp);
+  if(!items.length&&!doneItems.length){
+    document.getElementById('coordRoutes').innerHTML='';
+    document.getElementById('coordEmpty').style.display='block';
+    document.getElementById('coordStats').innerHTML='';
+    return;
+  }
+  document.getElementById('coordEmpty').style.display='none';
+  const occ=items.filter(x=>x.st==='occupied').length;
+  const inDoca=items.filter(x=>x.st==='waiting'||x.st==='available').length;
+  const queued=items.filter(x=>x.st==='queued').length;
+  document.getElementById('coordStats').innerHTML=
+    '<div class="cds" style="background:rgba(220,38,38,.2);color:#FCA5A5">En carga: '+occ+'</div>'+
+    '<div class="cds" style="background:rgba(21,128,61,.2);color:#86EFAC">En doca: '+inDoca+'</div>'+
+    '<div class="cds" style="background:rgba(245,158,11,.2);color:#FCD34D">En cola: '+queued+'</div>'+
+    '<div class="cds" style="background:rgba(99,102,241,.2);color:#C4B5FD">Completadas: '+doneItems.length+'</div>';
+  items.sort((a,z)=>({'occupied':0,'available':1,'waiting':2,'queued':3}[a.st]||9)-({'occupied':0,'available':1,'waiting':2,'queued':3}[z.st]||9)||(a.v.ola||9)-(z.v.ola||9));
+  const container=document.getElementById('coordRoutes');
+  container.innerHTML='';
+  items.forEach(item=>{
+    const card=document.createElement('div');
+    const ola=item.v.ola||0;
+    let stLabel='',stCls='',cardCls='',docaBadge='';
+    if(item.st==='occupied'){
+      stLabel='EN CARGA';stCls='rcst-occ';cardCls='rc-occ';
+      docaBadge='<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;padding:5px 9px;background:rgba(220,38,38,.13);border-radius:7px;font-size:.73rem;font-weight:700;color:#FCA5A5">&#x1F534; Doca ocupada &mdash; cargando</div>';
+    }else if(item.st==='waiting'){
+      stLabel='EN ESPERA';stCls='rcst-wait';
+      docaBadge='<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;padding:5px 9px;background:rgba(29,78,216,.13);border-radius:7px;font-size:.73rem;font-weight:700;color:#93C5FD">&#x1F535; En doca &mdash; esperando despacho</div>';
+    }else if(item.st==='available'){
+      stLabel='DISPONIBLE';stCls='rcst-avail';cardCls='';
+      docaBadge='<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;padding:5px 9px;background:rgba(21,128,61,.22);border-radius:7px;font-size:.73rem;font-weight:700;color:#4ADE80">&#x1F7E2; Doca LIBRE &mdash; puede ingresar ahora</div>';
+    }else{
+      stLabel='EN COLA';stCls='rcst-queue';
+      docaBadge='<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;padding:5px 9px;background:rgba(245,158,11,.12);border-radius:7px;font-size:.73rem;font-weight:700;color:#FCD34D">&#x1F7E1; Pendiente &mdash; doca ocupada</div>';
+    }
+    const _safe_plate=(item.v.patente||'').replace(/['"]/g,'');
+    const _qrId='coord-qr-'+item.bayNum+'-'+item.qi;
+    card.className='route-card rc-ola'+ola+' '+cardCls;
+    card.innerHTML=
+      '<div class="rc-doca">'+item.bayNum+'</div>'+
+      '<div class="rc-plate">'+(item.v.patente||'Sin placa')+'</div>'+
+      '<div class="rc-route" style="font-size:.74rem;color:#9CA3AF;margin-bottom:6px">'+(item.v.ruta||'')+'</div>'+
+      docaBadge+
+      (item.v.tipoRuta?'<div style="margin-bottom:4px"><span class="'+trClass(item.v.tipoRuta)+'" style="padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:700">'+item.v.tipoRuta+'</span></div>':'')+
+      (item.v.zona?'<div class="rc-company" style="color:#A78BFA">&#x1F4CD; Zona: '+item.v.zona+'</div>':'')+
+      (item.v.paradas?'<div class="rc-company" style="color:#6EE7B7">&#x1F6D1; Paradas: '+item.v.paradas+'</div>':'')+
+      '<div class="rc-company">'+(item.v.transportadora||'')+'</div>'+
+      '<span class="rc-status '+stCls+'">'+stLabel+'</span>'+
+      '<div class="rc-wave" style="background:'+WAVE_BG[ola]+'">Ola '+ola+'</div>'+
+      (item.st==='occupied'&&item.bay.entryTime?'<div id="ct'+item.bayNum+'" style="font-family:monospace;font-size:.78rem;color:#FCA5A5;margin-bottom:8px">'+fmt(item.bay.elapsedSeconds)+'</div>':'')+
+      '<div class="rc-actions" style="flex-direction:column;gap:6px;margin-top:8px">'+
+      (item.isCur?'<button class="btn btn-sm" onclick="llamarConductor(\''+item.bayNum+'\',\''+_safe_plate+'\','+ola+')" style="background:#DC2626;color:#fff;width:100%;justify-content:center;font-weight:700">&#x1F4E3; Llamar conductor</button>':'')+
+      (item.isCur?'<button class="btn btn-teal btn-sm" onclick="openChangePlate('+item.bayNum+','+item.qi+')" style="width:100%;justify-content:center">&#x1F504; Cambiar Conductor</button>':'')+
+      '</div>'+
+      '<div style="margin-top:8px">'+
+      '<button class="btn btn-sm" style="background:#F1F5F9;color:#374151;border:1px solid var(--ml-border);width:100%;justify-content:center;font-size:.65rem" '+
+      'onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.textContent=this.nextElementSibling.style.display===\'block\'?\'&#x25B2; Ocultar QR\':\'&#x1F4F7; Ver QR para conductor\'">'+
+      '&#x1F4F7; Ver QR para conductor</button>'+
+      '<div id="'+_qrId+'" style="display:none;text-align:center;padding:8px 0;background:#fff;border-radius:8px;margin-top:4px"></div></div>';
     container.appendChild(card);
-    // Generate QR after DOM insertion
-    setTimeout(()=>{const _qc=document.getElementById(_qrId);if(_qc&&!_qc.dataset.done){try{new QRCode(_qc,{text:'E'+item.bayNum+','+(item.v.ola||1),width:120,height:120,colorDark:'#1F2937',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}}_qc&&(_qc.dataset.done='1');},50);});}
+    setTimeout(()=>{const _qc=document.getElementById(_qrId);if(_qc&&!_qc.dataset.done){try{new QRCode(_qc,{text:'E'+item.bayNum+','+(item.v.ola||1),width:120,height:120,colorDark:'#1F2937',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}}_qc&&(_qc.dataset.done='1');},50);
+  });
+}
 function refreshCoordStats(){const u=AUTH.current;if(!u||u.role!=='coordinator')return;const trsp=normalizeTransp(u.transportadora||'');let occ=0,wait=0;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.queue.forEach((v,qi)=>{if(normalizeTransp(v.transportadora)===trsp){if(qi===b.currentIdx){if(b.status==='occupied')occ++;else if(b.status==='waiting')wait++;}else wait++;}});});const done=S.history.filter(h=>normalizeTransp(h.transportadora)===trsp).length;const el=document.getElementById('coordStats');if(el)el.innerHTML='<div class="cds" style="background:rgba(220,38,38,.2);color:#FCA5A5">En carga: '+occ+'</div><div class="cds" style="background:rgba(29,78,216,.2);color:#93C5FD">En espera: '+wait+'</div><div class="cds" style="background:rgba(21,128,61,.2);color:#86EFAC">Completadas: '+done+'</div>';ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='occupied'&&b.entryTime){const el=document.getElementById('ct'+n);if(el)el.textContent=fmt(b.elapsedSeconds);}});}
 
 /* CHANGE PLATE */

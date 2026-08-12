@@ -999,25 +999,25 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
       <table style="width:100%;border-collapse:collapse;font-size:.78rem" id="pendingQueueTable">
         <thead>
           <colgroup>
-            <col style="width:70px"><col style="width:100px"><col style="width:14%"><col style="width:18%"><col style="width:14%"><col style="width:60px"><col style="width:110px"><col style="width:70px">
+            <col style="width:70px"><col style="width:90px"><col style="width:100px"><col style="width:14%"><col style="width:16%"><col style="width:14%"><col style="width:110px"><col style="width:70px">
           </colgroup>
           <tr style="color:#1E3A8A;font-weight:700;font-size:.7rem;background:#EFF6FF">
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Ola</th>
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Estacionamiento</th>
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Placa</th>
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Ruta</th>
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Zona</th>
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Empresa</th>
-            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Muelle</th>
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Tipo</th>
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Pos.</th>
           </tr>
           <tr id="pendingFilterRow" style="background:#F8FAFC">
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><select id="pf-ola" onchange="applyPendingFilters()" style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 4px;background:#fff;color:#374151"><option value="">Todas</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"></td>
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-placa" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-ruta" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-zona" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-emp" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
-            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"></td>
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><select id="pf-tipo" onchange="applyPendingFilters()" style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 4px;background:#fff;color:#374151"><option value="">Todos</option><option>Riesgo</option><option>Lejana</option><option>Híbrida</option><option>Automovil</option><option>Small Van</option></select></td>
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9;text-align:center"><button onclick="clearPendingFilters()" title="Limpiar filtros" style="font-size:.65rem;background:#FEE2E2;border:1px solid #FECACA;border-radius:6px;padding:2px 7px;cursor:pointer;color:#DC2626;font-weight:700">✕</button></td>
           </tr>
@@ -1722,11 +1722,11 @@ function renderPendingQueue(){
       tr.dataset.tipo=(v.tipoRuta||'').toUpperCase();
       tr.innerHTML=
         '<td style="padding:3px 8px"><span style="background:'+WAVE_BG[v.ola||0]+';color:#fff;padding:1px 6px;border-radius:3px;font-weight:700;font-size:.72rem">Ola '+(v.ola||'-')+'</span></td>'+
-        '<td style="padding:3px 8px;font-weight:800;letter-spacing:.5px;color:#111827">'+(v.patente||'-')+(v.tmecOfensora?' <span title="Ofensora TMEC" style="font-size:.62rem;background:#DC2626;color:#fff;border-radius:4px;padding:1px 4px;vertical-align:middle;font-weight:700">⚠️</span>':'')+'</td>'+
+        '<td style="padding:3px 8px;font-weight:700;cursor:pointer;color:#1D4ED8;text-decoration:underline" onclick="onBayClick('+bayNum+')">'+bayNum+'</td>'+
+        '<td style="padding:3px 8px;font-weight:800;letter-spacing:.5px;color:#111827">'+(v.patente||'-')+(v.tmecOfensora?' <span title="Ofensor TMEC" style="font-size:.62rem;background:#DC2626;color:#fff;border-radius:4px;padding:1px 4px;vertical-align:middle;font-weight:700">⚠️</span>':'')+'</td>'+
         '<td style="padding:3px 8px;color:#1E3A8A;font-weight:600">'+(v.ruta||'-')+'</td>'+
         '<td style="padding:3px 8px;color:#1E3A8A;font-size:.75rem">'+(v.zona||'-')+'</td>'+
         '<td style="padding:3px 8px;color:#374151;font-size:.72rem;font-weight:600">'+(v.transportadora||'-')+'</td>'+
-        '<td style="padding:3px 8px;font-weight:700;cursor:pointer;color:#1D4ED8;text-decoration:underline" onclick="onBayClick('+bayNum+')">'+bayNum+'</td>'+
         '<td style="padding:3px 8px">'+(v.tipoRuta?'<span class="'+trClass(v.tipoRuta)+'" style="padding:2px 6px;border-radius:4px;font-size:.65rem;font-weight:700">'+(v.tipoRuta.includes(' - ')?v.tipoRuta.split(' - ').pop():v.tipoRuta)+'</span>':'-')+'</td>'+
         '<td style="padding:3px 8px;color:#374151;font-size:.72rem;font-weight:600">'+posLabel+'</td>';
       tbody.appendChild(tr);

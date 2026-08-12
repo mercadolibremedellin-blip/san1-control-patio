@@ -2041,31 +2041,47 @@ function timerClass(sec,spr){
 const _alertedBays=new Set(JSON.parse(localStorage.getItem('san1_alerted_bays')||'[]'));
 function speakUrgentExit(bayNum,plate,transportadora){
   try{
-    if(!('speechSynthesis' in window))return;
-    // Cancelar y limpiar estado
+    if(!('speechSynthesis' in window)){toast('TTS no soportado','danger');return;}
+    toast('📣 TMEC anunciado — E'+bayNum,'warning');
+    // Limpiar cola y cancelar
     window.speechSynthesis.cancel();
     if(_ttsStuck){clearTimeout(_ttsStuck);_ttsStuck=null;}
     _ttsBusy=false;_ttsQueue.length=0;
     const plateStr=plate?', placa '+plate.split('').join(' '):'';
     const transpStr=transportadora?'. Coordinador de '+transportadora+', apoyar estacionamiento '+bayNum:'';
     const txt='Atención. Estacionamiento '+bayNum+plateStr+'. Tiempo de cargue cumplido'+transpStr+'.';
-    const u=new SpeechSynthesisUtterance(txt);
-    u.lang='es-CO';
-    const lv=getLatinVoice();
-    if(lv)u.voice=lv;
-    u.rate=0.80;u.pitch=1;u.volume=1;
-    u.onerror=(e)=>{if(e.error!=='interrupted')console.warn('TMEC TTS error:',e.error);};
-    // CRÍTICO: speak() debe llamarse SINCRÓNICAMENTE desde el click del usuario.
-    // Cualquier setTimeout() rompe la cadena de gesto y Chrome silencia el audio.
-    window.speechSynthesis.resume(); // desbloquear si el tab estuvo en background
-    window.speechSynthesis.speak(u);
-    // Watchdog: si en 15s no terminó, limpiar
-    _ttsStuck=setTimeout(()=>{
-      if(window.speechSynthesis.speaking)window.speechSynthesis.cancel();
-      _ttsStuck=null;
-    },15000);
-    toast('📣 TMEC anunciado — E'+bayNum,'warning');
-  }catch(e){toast('Error TTS: '+e.message,'danger');}
+    // Chrome bug: cancel()+speak() sincrónicos se ignoran — cancel no termina antes.
+    // El primer click en la página ya inicializó speechSynthesis, así que
+    // un setTimeout aquí es SEGURO y NECESARIO para dejar que cancel() se asiente.
+    const _doSpeak=()=>{
+      try{
+        window.speechSynthesis.resume();
+        const lv=getLatinVoice();
+        const u=new SpeechSynthesisUtterance(txt);
+        // Si no hay voz española, no forzar lang (dejar default del sistema)
+        if(lv){u.voice=lv;u.lang='es-CO';}
+        u.rate=0.82;u.pitch=1;u.volume=1;
+        u.onstart=()=>{console.log('[TMEC TTS] started');};
+        u.onend=()=>{console.log('[TMEC TTS] done');};
+        u.onerror=(e)=>{
+          console.warn('[TMEC TTS] error:',e.error,e);
+          // Si falla con voz específica, reintentar sin voz
+          if(e.error!=='interrupted'){
+            const u2=new SpeechSynthesisUtterance(txt);
+            u2.rate=0.82;u2.volume=1;
+            window.speechSynthesis.speak(u2);
+          }
+        };
+        window.speechSynthesis.speak(u);
+        console.log('[TMEC TTS] speak() called, pending:',window.speechSynthesis.pending,'speaking:',window.speechSynthesis.speaking);
+        _ttsStuck=setTimeout(()=>{
+          if(window.speechSynthesis.speaking)window.speechSynthesis.cancel();
+          _ttsStuck=null;
+        },15000);
+      }catch(err){console.error('[TMEC TTS] exception:',err);}
+    };
+    setTimeout(_doSpeak,120);
+  }catch(e){toast('Error TTS: '+e.message,'danger');console.error('[TMEC TTS] outer:',e);}
 }
 function tickTimers(){
   ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='occupied'&&b.entryTime){

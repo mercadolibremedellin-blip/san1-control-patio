@@ -2043,41 +2043,29 @@ function speakUrgentExit(bayNum,plate,transportadora){
   try{
     if(!('speechSynthesis' in window)){toast('TTS no soportado','danger');return;}
     toast('📣 TMEC anunciado — E'+bayNum,'warning');
-    // Prioridad máxima: limpiar cola, preservar el gesto del usuario
+    // cancel() al inicio (fuera de announce) — igual que speakDriverCall que sí funciona.
+    // Así hay varias ops JS entre cancel() y speak(), sin romper el gesto del usuario.
+    window.speechSynthesis.cancel();
     _ttsQueue.length=0;
     if(_ttsStuck){clearTimeout(_ttsStuck);_ttsStuck=null;}
     const plateStr=plate?', placa '+plate.split('').join(' '):'';
     const transpStr=transportadora?'. Coordinador de '+transportadora+', apoyar estacionamiento '+bayNum:'';
     const txt='Atención. Estacionamiento '+bayNum+plateStr+'. Tiempo de cargue cumplido'+transpStr+'.';
-    // CORRECCIÓN: speak() debe ejecutarse en el mismo call-stack del click del usuario.
-    // Usamos el sistema _ttsQueue/_ttsNext que llama speak() sincrónicamente.
-    // cancel() justo antes de speak() (dentro de announce) es seguro con 1 frame de distancia.
     const announce=()=>{
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.resume();
+      // Sin cancel() aquí — eso es lo que fallaba en Chrome
       const lv=getLatinVoice();
       const u=new SpeechSynthesisUtterance(txt);
-      if(lv){u.voice=lv;u.lang='es-CO';}else{u.lang='es';}
+      u.lang='es-CO';
+      if(lv)u.voice=lv;
       u.rate=0.82;u.pitch=1;u.volume=1;
-      u.onend=()=>{_ttsBusy=false;_ttsNext();};
-      u.onerror=(e)=>{
-        console.warn('[TMEC TTS] error:',e.error);
-        _ttsBusy=false;
-        // Si falló con voz específica, reintentar sin asignar voz
-        if(e.error!=='interrupted'&&lv){
-          const u2=new SpeechSynthesisUtterance(txt);
-          u2.rate=0.82;u2.volume=1;
-          u2.onend=()=>{_ttsBusy=false;};
-          window.speechSynthesis.speak(u2);
-        }
-      };
+      u.onend=()=>{_ttsNext();};
+      u.onerror=(e)=>{if(e.error!=='interrupted')_ttsNext();};
       window.speechSynthesis.speak(u);
     };
-    // Poner al frente de la cola y forzar ejecución inmediata (sincrónica)
-    _ttsQueue.unshift(announce);
+    _ttsQueue.push(announce);
     _ttsBusy=false;
     _ttsNext();
-  }catch(e){toast('Error TTS: '+e.message,'danger');console.error('[TMEC TTS]',e);}
+  }catch(e){toast('Error TTS: '+e.message,'danger');}
 }
 function tickTimers(){
   ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='occupied'&&b.entryTime){

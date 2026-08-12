@@ -2106,7 +2106,7 @@ function openBayModal(n){
   document.getElementById('modalTitle').innerHTML='Muelle '+n+' <span style="font-size:.78rem;color:#9CA3AF;font-weight:400">'+labels[bay.status]+'</span>';
   let body='';
   if(cur){body+=mrow('Placa','<strong style="font-size:.98rem;letter-spacing:1px">'+(cur.patente||'-')+'</strong>');body+=mrow('Ruta',cur.ruta||'-');if(cur.zona)body+=mrow('Zona',cur.zona);body+=mrow('Empresa',cur.transportadora||'-');if(cur.vehicleType)body+=mrow('Vehículo',cur.vehicleType);
-    if(cur.tmecOfensora)body+=mrow('TMEC','<span style="background:#DC2626;color:#fff;padding:3px 10px;border-radius:6px;font-size:.78rem;font-weight:800">⚠️ Ofensora TMEC</span>');
+    if(cur.tmecOfensora)body+=mrow('TMEC','<span style="background:#DC2626;color:#fff;padding:3px 10px;border-radius:6px;font-size:.78rem;font-weight:800">⚠️ Ofensor TMEC</span>');
     if(cur.tipoRuta)body+=mrow('Tipo Ruta','<span class="'+trClass(cur.tipoRuta)+'" style="padding:2px 8px;border-radius:4px;font-size:.78rem">'+cur.tipoRuta+'</span>');
     body+=mrow('Ola','<span style="background:'+WAVE_BG[cur.ola||0]+';color:#fff;padding:2px 8px;border-radius:4px;font-weight:700">Ola '+(cur.ola||'-')+'</span>');if(bay.status==='occupied'&&bay.entryTime){body+=mrow('Ingreso',bay.entryTime.toLocaleTimeString());body+=mrow('Tiempo','<span id="mTimer" style="font-family:monospace;font-weight:800">'+fmt(bay.elapsedSeconds)+'</span>');}}
   else body+='<p style="color:#9CA3AF;font-size:.82rem;padding:6px 0">Sin vehiculo asignado.</p>';
@@ -2503,7 +2503,7 @@ function renderCoordDash(){
         '<div style="font-size:.72rem;color:#94A3B8;font-family:monospace;margin-bottom:12px">'+(item.v.ruta||'')+'</div>'+
         '<div style="border-top:1px solid #F1F5F9;margin-bottom:10px"></div>'+
         '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px">'+
-          (item.v.tmecOfensora?'<span style="align-self:flex-start;padding:2px 10px;border-radius:20px;font-size:.7rem;font-weight:800;background:#DC2626;color:#fff">⚠️ Ofensora TMEC</span>':'')+
+          (item.v.tmecOfensora?'<span style="align-self:flex-start;padding:2px 10px;border-radius:20px;font-size:.7rem;font-weight:800;background:#DC2626;color:#fff">⚠️ Ofensor TMEC</span>':'')+
           (item.v.tipoRuta?'<span class="'+trClass(item.v.tipoRuta)+'" style="align-self:flex-start;padding:2px 10px;border-radius:20px;font-size:.7rem;font-weight:700">'+item.v.tipoRuta+'</span>':'')+
           (item.v.zona?'<div style="display:flex;align-items:center;gap:6px;font-size:.76rem;color:#64748B"><span style="color:#A78BFA">&#x1F4CD;</span>'+item.v.zona+'</div>':'')+
           (item.v.paradas?'<div style="display:flex;align-items:center;gap:6px;font-size:.76rem;color:#64748B"><span style="color:#34D399">&#x1F6D1;</span>'+item.v.paradas+' paradas</div>':'')+

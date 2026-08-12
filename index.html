@@ -2159,7 +2159,7 @@ function openBayModal(n){
     acts+='<button class="btn btn-amber" onclick="llamarConductor(\''+n+'\',\''+cur.patente+'\','+cur.ola+')">📣 Llamar</button>';
   // Botón anuncio TTS manual (solo admin, solo cuando está cargando y superó el límite)
   if(_cuModal&&_cuModal.role==='admin'&&bay.status==='occupied'&&bay.elapsedSeconds>=getAlertLimit())
-    acts+='<button class="btn btn-red btn-sm" onclick="speakUrgentExit('+n+',\''+( cur?cur.patente||'':'')+'\',(cur&&cur.transportadora)||\'\')" title="Anunciar por voz que el TMEC fue superado">🔊 Anunciar TMEC</button>';
+    {const _p=(cur?cur.patente||'':'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");const _t=(cur&&cur.transportadora?cur.transportadora:'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");acts+='<button class="btn btn-red btn-sm" onclick="speakUrgentExit('+n+',\''+_p+'\',\''+_t+'\')" title="Anunciar por voz que el TMEC fue superado">🔊 Anunciar TMEC</button>';}
   if(bay.status==='empty')acts+='<button class="btn btn-gray" onclick="doBlockFromModal()">Bloquear</button>';
   if(bay.status==='blocked')acts+='<button class="btn btn-gray" onclick="doBlockFromModal()">Desbloquear</button>';
   acts+='<button class="btn btn-dark" onclick="closeBayModal()">Cerrar</button>';

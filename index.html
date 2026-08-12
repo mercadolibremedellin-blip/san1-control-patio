@@ -1903,6 +1903,26 @@ function processScan(){
           addActivity('re','Doca '+bayNum,'Ola '+skippedOla+' pospuesta — adelantando Ola '+qrOla);
           toast('⏭ Ola '+qrOla+' adelantada — Ola '+skippedOla+' queda pendiente','warning');
         }else{showScanResult('QR es Ola '+qrOla+' pero no hay vehículo de esa ola en E'+bayNum,'err');return;}
+      }else if(bay.status==='occupied'){
+        // Vehículo en carga con ola distinta → auto-salida + buscar y promover el del QR
+        const skipIdxOcc=bay.queue.findIndex((v,i)=>i>bay.currentIdx&&v.ola===qrOla);
+        if(skipIdxOcc<0){showScanResult('QR es Ola '+qrOla+' pero no hay vehículo de esa ola en E'+bayNum,'err');return;}
+        // 1. Auto-salida del actual
+        const _autoExitV=bay.queue[bay.currentIdx];
+        const _autoDur=fmt(bay.elapsedSeconds);
+        const _autoExitOla=_autoExitV?_autoExitV.ola||0:0;
+        S.history.push({doca:bayNum,patente:_autoExitV?_autoExitV.patente||'':'',transportadora:_autoExitV?_autoExitV.transportadora||'':'',ruta:_autoExitV?_autoExitV.ruta||'':'',ola:_autoExitV?_autoExitV.ola||'':'',ingreso:bay.entryTime?bay.entryTime.toLocaleString():'',salida:new Date().toLocaleString(),tiempo:_autoDur});
+        addActivity('out','Doca '+bayNum,(_autoExitV?_autoExitV.patente||'?':'?')+'(auto '+_autoDur+')');
+        bay.currentIdx++;bay.entryTime=null;bay.elapsedSeconds=0;bay.status='waiting';
+        checkAutoDispatch(_autoExitOla);
+        // 2. Promover el vehículo del qrOla al frente
+        const skipIdxOcc2=bay.queue.findIndex((v,i)=>i>=bay.currentIdx&&v.ola===qrOla);
+        if(skipIdxOcc2>=0&&skipIdxOcc2!==bay.currentIdx){
+          const _promoted2=bay.queue.splice(skipIdxOcc2,1)[0];
+          bay.queue.splice(bay.currentIdx,0,_promoted2);
+        }
+        cur=bay.queue[bay.currentIdx];
+        if(!cur){bay.status='empty';refreshBayEl(bayNum);updateStats();saveLocal();broadcastState();showScanResult('Salida auto OK\nNo hay más vehículos en Doca '+bayNum,'warn');renderScannerQueue();renderScanHist();return;}
       }else{showScanResult('QR es Ola '+qrOla+' pero el vehículo actual es Ola '+(cur.ola||'?')+'\nE'+bayNum+' | '+(cur.patente||'sin placa'),'err');return;}
     }
     if(S.scanMode==='in'){

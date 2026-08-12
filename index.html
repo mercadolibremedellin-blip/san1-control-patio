@@ -1894,17 +1894,39 @@ function processScan(){
       if(bay.status==='waiting'){
         const skipIdx=bay.queue.findIndex((v,i)=>i>=bay.currentIdx&&v.ola===qrOla);
         if(skipIdx>=0){
-          // Saltar vehículos pendientes hasta el de la ola solicitada
+          // Promover vehículo de ola skipIdx al frente sin descartar los anteriores
           const skippedOla=cur.ola;
-          bay.currentIdx=skipIdx;
+          const promoted=bay.queue.splice(skipIdx,1)[0]; // sacar de su posición
+          bay.queue.splice(bay.currentIdx,0,promoted);   // insertar al frente
+          // currentIdx NO cambia — ahora apunta al promoted
           cur=bay.queue[bay.currentIdx];
-          addActivity('re','Doca '+bayNum,'Ola '+skippedOla+' no llegó — saltando a Ola '+qrOla);
-          toast('⏭ Ola '+skippedOla+' sin llegar → ingresando Ola '+qrOla,'warning');
+          addActivity('re','Doca '+bayNum,'Ola '+skippedOla+' pospuesta — adelantando Ola '+qrOla);
+          toast('⏭ Ola '+qrOla+' adelantada — Ola '+skippedOla+' queda pendiente','warning');
         }else{showScanResult('QR es Ola '+qrOla+' pero no hay vehículo de esa ola en E'+bayNum,'err');return;}
       }else{showScanResult('QR es Ola '+qrOla+' pero el vehículo actual es Ola '+(cur.ola||'?')+'\nE'+bayNum+' | '+(cur.patente||'sin placa'),'err');return;}
     }
     if(S.scanMode==='in'){
-      if(bay.status==='occupied'){showScanResult('E'+bayNum+' ya está en carga','err');return;}
+      if(bay.status==='occupied'){
+        // Auto-salida del actual + ingreso del siguiente
+        const _prevCur=bay.queue[bay.currentIdx];
+        const _dur=fmt(bay.elapsedSeconds);
+        const _exitOlaAuto=_prevCur?_prevCur.ola||0:0;
+        S.history.push({doca:bayNum,patente:_prevCur?_prevCur.patente||'':'',transportadora:_prevCur?_prevCur.transportadora||'':'',ruta:_prevCur?_prevCur.ruta||'':'',ola:_prevCur?_prevCur.ola||'':'',ingreso:bay.entryTime?bay.entryTime.toLocaleString():'',salida:new Date().toLocaleString(),tiempo:_dur});
+        addActivity('out','Doca '+bayNum,(_prevCur?_prevCur.patente:'')+'(auto '+_dur+')');
+        bay.currentIdx++;bay.entryTime=null;bay.elapsedSeconds=0;
+        cur=bay.queue[bay.currentIdx];
+        if(!cur){bay.status='empty';refreshBayEl(bayNum);updateStats();saveLocal();broadcastState();showScanResult('Salida auto de '+(_prevCur?_prevCur.patente||'?':'?')+'\nNo hay más vehículos en Doca '+bayNum,'warn');renderScannerQueue();renderScanHist();return;}
+        bay.status='waiting';
+        checkAutoDispatch(_exitOlaAuto);
+        // Ahora continúa con el ingreso del nuevo vehículo (cur ya está actualizado)
+        // Verificar que el nuevo cur coincide con el qrOla
+        if(cur.ola&&cur.ola!==qrOla){showScanResult('Salida auto de '+(_prevCur?_prevCur.patente||'?':'?')+'\nPero el siguiente es Ola '+cur.ola+' no Ola '+qrOla+' en E'+bayNum,'err');refreshBayEl(bayNum);updateStats();saveLocal();broadcastState();renderScannerQueue();renderScanHist();return;}
+        bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
+        addActivity('in','Doca '+bayNum,(cur.patente||'')+' '+(cur.ruta||''));
+        refreshBayEl(bayNum);updateStats();renderActivityFeed();saveLocal();broadcastState();SND.enter();
+        showScanResult('AUTO-SALIDA + INGRESO\n↑ Salida: '+(_prevCur?_prevCur.patente||'?':'?')+'  ('+_dur+')\n↓ Ingreso: '+(cur.patente||'?')+' Ola '+qrOla,'ok');
+        renderScannerQueue();renderScanHist();return;
+      }
       if(bay.status!=='waiting'&&bay.status!=='prein'){showScanResult('E'+bayNum+' no está en espera','err');return;}
       bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
       addActivity('in','Doca '+bayNum,(cur?cur.patente+' ':'')+(cur?cur.ruta||'':''));

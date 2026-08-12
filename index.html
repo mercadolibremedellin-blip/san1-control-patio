@@ -809,7 +809,10 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
   <div class="ds-label" style="margin-top:6px">Estacionamiento Asignado</div>
   <div class="ds-baynum" id="dsBayNum">-</div>
   <div class="ds-label">Ruta</div><div class="ds-val" style="font-size:1.35rem" id="dsRoute">-</div>
-  <div id="dsTmecBadge" style="display:none;background:#DC2626;color:#fff;font-weight:800;font-size:.85rem;padding:8px 16px;border-radius:10px;margin:8px 20px 0;text-align:center;animation:pulse-badge 1.5s infinite">⚠️ Vehículo ofensor TMEC — Agilizar cargue</div>
+  <div id="dsTmecBadge" style="display:none;margin:14px 24px 0;padding:14px 20px;background:rgba(0,0,0,0.35);border:1.5px solid rgba(255,150,150,0.35);border-radius:14px;text-align:center">
+    <div style="font-size:.6rem;color:rgba(255,190,190,.75);font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px">⚠ Vehículo Ofensor TMEC</div>
+    <div style="font-size:.84rem;color:#FCA5A5;font-weight:700;line-height:1.3">Agiliza tu cargue<br><span style="font-size:.72rem;font-weight:400;color:rgba(255,180,180,.7)">Estás siendo monitoreado por el equipo de patio</span></div>
+  </div>
   <div class="ds-label">Transportadora</div><div class="ds-val" id="dsCompany">-</div>
   <div class="ds-status" id="dsStatus">-</div>
   <div class="ds-label" style="margin-top:4px">Codigo QR para escanear al ingresar/salir</div>
@@ -1492,6 +1495,7 @@ function refreshDriverScreen(plate){
     else{ds.textContent='Sin asignacion activa. Contacta al operador.';ds.className='ds-status ds-empty';}
     document.getElementById('qrContainer').innerHTML='';
     const _dscr=document.getElementById('driverScreen');if(_dscr)_dscr.style.background='linear-gradient(135deg,#0F172A,#0C1625)';
+    const _offBdg=document.getElementById('dsTmecBadge');if(_offBdg)_offBdg.style.display='none';
     const _dsd=document.getElementById('dsStateDate');if(_dsd)_dsd.textContent=fmtStateDate();
     S.driverPrevStatus=null;S.driverPrevIsCurrent=null;
     return;
@@ -1523,6 +1527,10 @@ function refreshDriverScreen(plate){
   else if(bay.status==='waiting'&&isCur&&_olaDispatched){ds.textContent='¡INGRESA YA! Dirígete al estacionamiento E'+foundBay;ds.className='ds-status ds-alert';if(dscr)dscr.style.background='linear-gradient(135deg,#14532D,#15803D)';}
   else if(bay.status==='prein'&&isCur&&_olaDispatched){ds.textContent='¡PREPÁRATE! En cualquier momento te pueden llamar';ds.className='ds-status ds-wait';if(dscr)dscr.style.background='linear-gradient(135deg,#0F172A,#0C1625)';}
   else{const ahead=foundIdx-bay.currentIdx;if(dscr)dscr.style.background='linear-gradient(135deg,#0F172A,#0C1625)';if(ahead===1&&bay.status==='occupied'){ds.textContent='¡PREPARATE! El vehículo antes que tú está cargando';ds.className='ds-status ds-wait';}else{ds.textContent='EN COLA - '+ahead+' vehiculo'+(ahead!==1?'s':'')+' antes que tu';ds.className='ds-status ds-wait';}}
+  // TMEC offender: fondo rojo + badge visible (override cualquier background previo)
+  const _offBadge=document.getElementById('dsTmecBadge');
+  if(_offBadge)_offBadge.style.display=foundV.tmecOfensora?'block':'none';
+  if(foundV.tmecOfensora&&dscr)dscr.style.background='linear-gradient(135deg,#1A0505,#5B1A1A)';
   // Fecha/hora de carga del estado
   const _dsd2=document.getElementById('dsStateDate');if(_dsd2)_dsd2.textContent=fmtStateDate();
   // QR = E{bay},{ola} — compatible con formato de sticker físico del escáner

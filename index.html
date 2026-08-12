@@ -1765,8 +1765,8 @@ function refreshBayEl(n,el){
     if(cur.patente)h+='<div class="bp">'+cur.patente+'</div>';
     if(cur.ruta)h+='<div class="br">'+cur.ruta+'</div>';
     if(cur.transportadora)h+='<div class="bc">'+cur.transportadora.substring(0,13)+'</div>';
-    if(cur.tmecOfensora)h+='<div style="font-size:.52rem;font-weight:800;padding:2px 5px;border-radius:3px;margin-top:1px;display:inline-block;background:#DC2626;color:#fff;letter-spacing:.03em;font-family:Inter,sans-serif">⚠️ TMEC</div>';
     if(cur.tipoRuta)h+='<div style="font-size:.48rem;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:1px;display:inline-block;font-family:Inter,sans-serif;letter-spacing:.01em" class="'+trClass(cur.tipoRuta)+'">'+(cur.tipoRuta.includes(' - ')?cur.tipoRuta.split(' - ').pop():cur.tipoRuta).substring(0,12)+'</div>';
+    if(cur.tmecOfensora)h+='<div style="font-size:.52rem;font-weight:800;padding:2px 5px;border-radius:3px;margin-top:1px;display:inline-block;background:#DC2626;color:#fff;letter-spacing:.03em;font-family:Inter,sans-serif">⚠️ TMEC</div>';
     if(bay.status==='occupied'){const _spr=cur?cur.spr||0:0;let tc=timerClass(bay.elapsedSeconds,_spr);h+='<div class="'+tc+'" id="t'+n+'">'+fmt(bay.elapsedSeconds)+'</div>';}
     if(bay.status==='prein'){h+='<div style="font-size:.62rem;font-weight:800;color:#6EE7B7;background:rgba(0,0,0,.3);border-radius:3px;padding:1px 3px;margin-top:2px">EN PATIO</div>';}
     const rem=bay.queue.length-bay.currentIdx-1;if(rem>0)h+='<div class="bqueue">+'+rem+'</div>';

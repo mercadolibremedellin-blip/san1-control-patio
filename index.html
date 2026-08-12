@@ -2042,33 +2042,28 @@ const _alertedBays=new Set(JSON.parse(localStorage.getItem('san1_alerted_bays')|
 function speakUrgentExit(bayNum,plate,transportadora){
   try{
     if(!('speechSynthesis' in window))return;
-    // Prioridad máxima: cancelar todo lo que esté en curso y hablar de inmediato
+    // Cancelar y limpiar estado
     window.speechSynthesis.cancel();
     if(_ttsStuck){clearTimeout(_ttsStuck);_ttsStuck=null;}
     _ttsBusy=false;_ttsQueue.length=0;
     const plateStr=plate?', placa '+plate.split('').join(' '):'';
     const transpStr=transportadora?'. Coordinador de '+transportadora+', apoyar estacionamiento '+bayNum:'';
     const txt='Atención. Estacionamiento '+bayNum+plateStr+'. Tiempo de cargue cumplido'+transpStr+'.';
-    // Retry loop: Chrome a veces ignora speak() si speechSynthesis está en estado raro
-    let _attempts=0;
-    const _trySpeak=()=>{
-      if(_attempts>3)return;
-      _attempts++;
-      window.speechSynthesis.cancel();
-      setTimeout(()=>{
-        const u=new SpeechSynthesisUtterance(txt);
-        u.lang='es-CO';
-        const lv=getLatinVoice();
-        if(lv)u.voice=lv;
-        u.rate=0.80;u.pitch=1;u.volume=1;
-        u.onend=()=>{_ttsBusy=false;};
-        u.onerror=(e)=>{if(e.error!=='interrupted'&&_attempts<3)setTimeout(_trySpeak,200);};
-        window.speechSynthesis.speak(u);
-        // Watchdog: si en 15s no terminó, liberar
-        setTimeout(()=>{if(window.speechSynthesis.speaking)window.speechSynthesis.cancel();_ttsBusy=false;},15000);
-      },80);
-    };
-    _trySpeak();
+    const u=new SpeechSynthesisUtterance(txt);
+    u.lang='es-CO';
+    const lv=getLatinVoice();
+    if(lv)u.voice=lv;
+    u.rate=0.80;u.pitch=1;u.volume=1;
+    u.onerror=(e)=>{if(e.error!=='interrupted')console.warn('TMEC TTS error:',e.error);};
+    // CRÍTICO: speak() debe llamarse SINCRÓNICAMENTE desde el click del usuario.
+    // Cualquier setTimeout() rompe la cadena de gesto y Chrome silencia el audio.
+    window.speechSynthesis.resume(); // desbloquear si el tab estuvo en background
+    window.speechSynthesis.speak(u);
+    // Watchdog: si en 15s no terminó, limpiar
+    _ttsStuck=setTimeout(()=>{
+      if(window.speechSynthesis.speaking)window.speechSynthesis.cancel();
+      _ttsStuck=null;
+    },15000);
     toast('📣 TMEC anunciado — E'+bayNum,'warning');
   }catch(e){toast('Error TTS: '+e.message,'danger');}
 }

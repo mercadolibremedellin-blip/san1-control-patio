@@ -2593,7 +2593,7 @@ function parseCSV(text){
   const iPar=idx('Paradas')>=0?idx('Paradas'):idx('Stops');
   const iSpr=idx('SPR')>=0?idx('SPR'):(idx('Spr')>=0?idx('Spr'):5);
   const iTR=idx('Tipo de ruta')>=0?idx('Tipo de ruta'):idx('Tipo Ruta')>=0?idx('Tipo Ruta'):-1;
-  const iTMEC=idx('Ofensora TMEC')>=0?idx('Ofensora TMEC'):idx('Ofensora')>=0?idx('Ofensora'):idx('TMEC Ofensora')>=0?idx('TMEC Ofensora'):-1;
+  const iTMEC=idx('Ofensor TMEC')>=0?idx('Ofensor TMEC'):idx('Ofensora TMEC')>=0?idx('Ofensora TMEC'):idx('Ofensora')>=0?idx('Ofensora'):idx('Ofensor')>=0?idx('Ofensor'):-1;
   if(iD<0){toast('No se encontro columna de estacion (Estación WTD o Doca)','danger');return;}
   ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status!=='blocked'){b.queue=[];b.currentIdx=0;b.status='empty';}});
   let count=0;

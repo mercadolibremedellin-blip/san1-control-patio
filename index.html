@@ -2050,10 +2050,16 @@ function timerClass(sec,spr){
   return 'btimer btimer-green';
 }
 const _alertedBays=new Set(JSON.parse(localStorage.getItem('san1_alerted_bays')||'[]'));
-function speakUrgentExit(bayNum,plate,transportadora){
+function speakUrgentExit(bayNum,plate,transportadora,_fromBroadcast){
   try{
     if(!('speechSynthesis' in window)){toast('TTS no soportado','danger');return;}
     toast('📣 TMEC anunciado — E'+bayNum,'warning');
+    // Broadcast to other devices (only when triggered locally, not by remote event)
+    if(!_fromBroadcast){
+      const _td={bayNum,plate:plate||'',transportadora:transportadora||'',ts:Date.now()};
+      try{S.bc&&S.bc.postMessage({type:'TMEC_ANNOUNCE',data:_td});}catch(e){}
+      try{(S.ablyChannel).publish('TMEC_ANNOUNCE',_td);}catch(e){}
+    }
     // cancel() al inicio (fuera de announce) — igual que speakDriverCall que sí funciona.
     // Así hay varias ops JS entre cancel() y speak(), sin romper el gesto del usuario.
     window.speechSynthesis.cancel();
@@ -2821,7 +2827,7 @@ const _dol=localStorage.getItem('san1_dispatch_ola');if(_dol!==null&&S._stateTs>
 try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=parseInt(localStorage.getItem('san1_state_ts')||'0');if(_fc>0&&_fc>=_fs){ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});S.stateGen=Date.now();S.isStateOwner=true;}}catch(e){}}
 
 /* REAL-TIME */
-function setupBC(){try{S.bc=new BroadcastChannel('san1-v3');S.bc.onmessage=e=>{if(S.isBroadcasting)return;const t=e.data.type,d=e.data.data;if(t==='STATE')applyRemote(d);else if(t==='CSV_LOAD'){S.isStateOwner=false;applyRemote(d,true);}else if(t==='USERS_SYNC'){const _lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(d&&d.users&&d.ts>_lt){AUTH.saveUsers(d.users);}else if(d&&Array.isArray(d))AUTH.saveUsers(d);}else if(t==='REASSIGN_NOTIF')showReassignNotif(d);else if(t==='PLATE_CHANGE')applyPlateChange(d);else if(t==='WAVE_DISPATCH')handleWaveDispatch(d);else if(t==='DRIVER_CALL')handleDriverCall(d);else if(t==='REQUEST_STATE'){if(S.isStateOwner){broadcastState(true);AUTH.syncUsers();}}};}catch(e){}}
+function setupBC(){try{S.bc=new BroadcastChannel('san1-v3');S.bc.onmessage=e=>{if(S.isBroadcasting)return;const t=e.data.type,d=e.data.data;if(t==='STATE')applyRemote(d);else if(t==='CSV_LOAD'){S.isStateOwner=false;applyRemote(d,true);}else if(t==='USERS_SYNC'){const _lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(d&&d.users&&d.ts>_lt){AUTH.saveUsers(d.users);}else if(d&&Array.isArray(d))AUTH.saveUsers(d);}else if(t==='REASSIGN_NOTIF')showReassignNotif(d);else if(t==='PLATE_CHANGE')applyPlateChange(d);else if(t==='WAVE_DISPATCH')handleWaveDispatch(d);else if(t==='DRIVER_CALL')handleDriverCall(d);else if(t==='TMEC_ANNOUNCE'){speakUrgentExit(d.bayNum,d.plate,d.transportadora,true);}else if(t==='REQUEST_STATE'){if(S.isStateOwner){broadcastState(true);AUTH.syncUsers();}}};}catch(e){}}
 function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.channelName;S.ably=new Ably.Realtime({key,recover:(_,cb)=>cb(true)});S.ablyChannel=S.ably.channels.get(ch);
   // Canal drivers — solo DRIVER_CALL (conductores no se suscriben al canal de estado)
   S.ablyDriverChannel=S.ably.channels.get(ch+'-drivers');
@@ -2831,6 +2837,7 @@ function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.
   S.ablyChannel.subscribe('PLATE_CHANGE',msg=>applyPlateChange(msg.data));
   S.ablyChannel.subscribe('WAVE_DISPATCH',msg=>handleWaveDispatch(msg.data));
   S.ablyDriverChannel.subscribe('DRIVER_CALL',msg=>handleDriverCall(msg.data));
+  S.ablyChannel.subscribe('TMEC_ANNOUNCE',msg=>{const _d=msg.data||{};speakUrgentExit(_d.bayNum,_d.plate,_d.transportadora,true);});
   S.ablyChannel.subscribe('CSV_LOAD',msg=>{if(S.isBroadcasting)return;S.isStateOwner=false;applyRemote(msg.data,true);});
   S.ablyChannel.subscribe('USERS_SYNC',msg=>{const _d=msg.data,_lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(_d&&_d.users&&_d.ts>_lt){AUTH.saveUsers(_d.users);}else if(_d&&Array.isArray(_d))AUTH.saveUsers(_d);});
   S.ablyChannel.subscribe('REQUEST_STATE',msg=>{if(S.isStateOwner){const _now=Date.now();if(!S._lastReqStateResp||_now-S._lastReqStateResp>5000){S._lastReqStateResp=_now;broadcastState(true);AUTH.syncUsers();}}});

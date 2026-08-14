@@ -854,7 +854,7 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
         <span class="role-tag" id="userRoleTag">-</span>
         <button class="btn btn-dark btn-sm" style="padding:2px 7px" onclick="doLogout()">Salir</button>
       </div>
-      <div style="display:flex;align-items:center;gap:4px;font-size:.7rem;color:rgba(255,255,255,.65);white-space:nowrap">
+      <div style="display:flex;align-items:center;gap:4px;font-size:.7rem;color:rgba(255,255,255,.65);white-space:nowrap;cursor:pointer" onclick="manualReconnect()" title="Clic para reconectar">
         <div class="conn-dot" id="connDot"></div><span id="connText">Local</span>
       </div>
     </div>
@@ -2845,7 +2845,7 @@ function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.
   S.ablyChannel.subscribe('REQUEST_USERS',msg=>{const _myTs=parseInt(localStorage.getItem('san1_users_ts')||'0');const _reqTs=msg.data&&msg.data.ts?msg.data.ts:0;if(AUTH.getUsers().length>1&&_myTs>=_reqTs)AUTH.syncUsers();});S.ably.connection.on('connected',()=>{document.getElementById('connDot').className='conn-dot ok';document.getElementById('connText').textContent='Sync activo';if(S._ablyReconnectTimer){clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=null;}S._reconnectAttempts=0;toast('Sync activo','success');setTimeout(()=>{try{S.ablyChannel.publish('REQUEST_USERS',{ts:parseInt(localStorage.getItem('san1_users_ts')||'0')});}catch(e){}},1200);let _rsr=0;const _rs=()=>{if(S._gotRemoteState||_rsr>8){if(!S._gotRemoteState&&!S.isStateOwner)S.isStateOwner=true;return;}_rsr++;try{S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}setTimeout(_rs,3000);};setTimeout(_rs,800);});S.ably.connection.on('disconnected',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Reconectando...';});S.ably.connection.on('suspended',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Sin señal - reintentando...';});S.ably.connection.on('failed',()=>{document.getElementById('connDot').className='conn-dot';document.getElementById('connText').textContent='Error sync — clic para reconectar';
   // Auto-retry up to 5 times
   if(!S._reconnectAttempts)S._reconnectAttempts=0;
-  if(S._reconnectAttempts<5){S._reconnectAttempts++;if(S._ablyReconnectTimer)clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=setTimeout(manualReconnect,15000);}if(S._ablyReconnectTimer)clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=setTimeout(()=>{toast('Intentando reconectar...','warning');setupAbly(S.ablyKey||document.getElementById('ablyKey')?.value||'');},15000);});}catch(e){console.warn('Ably:',e);}}
+  if(S._ablyReconnectTimer)clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=setTimeout(()=>{toast('Intentando reconectar...','warning');manualReconnect();},12000);});}catch(e){console.warn('Ably:',e);}}
 let _bsTimer=null;
 function broadcastState(immediate){
   // Debounce: agrupa llamadas seguidas en una sola — reduce hasta 80% el tráfico Ably

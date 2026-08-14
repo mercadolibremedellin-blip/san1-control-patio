@@ -2091,9 +2091,7 @@ function tickTimers(){
     // Alerta fija a los 14 minutos
     const _cur14=b.queue[b.currentIdx];const _key14=n+'_'+b.entryTime.getTime();
     if(b.elapsedSeconds>=getAlertLimit()&&!_alertedBays.has(_key14)){_alertedBays.add(_key14);localStorage.setItem('san1_alerted_bays',JSON.stringify([..._alertedBays]));playAlertBeep();}
-    if(b.elapsedSeconds===0){_alertedBays.delete(_key14);_alertedBays.delete('tmec_'+_key14);localStorage.setItem('san1_alerted_bays',JSON.stringify([..._alertedBays]));}
-    // Auto-anuncio TMEC Ola 1: solo el state owner lo dispara (para no duplicar en todos los dispositivos)
-    if(S.isStateOwner&&_cur14&&(_cur14.ola===1||_cur14.ola==='1')&&b.elapsedSeconds>=960){const _ktmec='tmec_'+_key14;if(!_alertedBays.has(_ktmec)){_alertedBays.add(_ktmec);localStorage.setItem('san1_alerted_bays',JSON.stringify([..._alertedBays]));speakUrgentExit(n,_cur14.patente||'',_cur14.transportadora||'');}}
+    if(b.elapsedSeconds===0){_alertedBays.delete(_key14);localStorage.setItem('san1_alerted_bays',JSON.stringify([..._alertedBays]));}
   }});
   const mn=S.selectedBay;if(mn){const b=S.bays[mn];if(b&&b.status==='occupied'){const el=document.getElementById('mTimer');if(el)el.textContent=fmt(b.elapsedSeconds);}}
   if(AUTH.current&&AUTH.current.role==='coordinator')refreshCoordStats();

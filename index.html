@@ -2857,7 +2857,27 @@ function _doBroadcastState(){
   _bsTimer=null;
   const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null};});p.__gen=S.stateGen;p.__ts=S._stateTs||0;p.__call=S.pendingDriverCall||null;p.__dispatchOla=S.dispatchedOla||0;p.__hist=S.history.slice(-150);S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'STATE',data:p});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('STATE',p);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);document.getElementById('lastSync').textContent='Sync: '+new Date().toLocaleTimeString();
 }
-function manualReconnect(){try{if(S.ably){try{S.ably.close();}catch(e){}}S.ably=null;S.ablyChannel=null;}catch(e){}document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Reconectando...';setTimeout(()=>setupAbly(S.ablyKey||localStorage.getItem('san1_ably_key')||'',S.channelName||'san1-patio'),400);toast('Reconectando...','info');}
+function manualReconnect(){
+  if(!S._reconnectAttempts)S._reconnectAttempts=0;
+  S._reconnectAttempts++;
+  try{if(S.ably){try{S.ably.close();}catch(e){}}S.ably=null;S.ablyChannel=null;S.ablyDriverChannel=null;}catch(e){}
+  document.getElementById('connDot').className='conn-dot warn';
+  document.getElementById('connText').textContent='Reconectando...';
+  const key=S.ablyKey||localStorage.getItem('san1_ably_key')||'';
+  if(!key){toast('Sin clave Ably — abre Configuración y guarda la clave','danger');return;}
+  setTimeout(()=>setupAbly(key,S.channelName||'san1-patio'),600);
+  toast('Reconectando (intento '+S._reconnectAttempts+')...','info');
+  // Si después de 8s sigue sin conectar, mostrar botón de recarga en el chip
+  if(S._reconnectAttempts>=3){
+    setTimeout(()=>{
+      if(S.ably&&S.ably.connection.state!=='connected'){
+        const ct=document.getElementById('connText');
+        if(ct)ct.innerHTML='Sin sync — <span onclick="location.reload()" style="text-decoration:underline;cursor:pointer">Recargar</span>';
+        toast('Sin sync tras varios intentos. Recarga la página.','danger',8000);
+      }
+    },8000);
+  }
+}
 function broadcastEvent(type,data){try{S.bc&&S.bc.postMessage({type,data});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish(type,data);}catch(e){}}
 function applyRemote(data,force){if(!data)return;if(data.__call&&S.driverPlate&&data.__call.plate&&data.__call.plate.toUpperCase()===S.driverPlate.toUpperCase()&&(Date.now()-data.__call.ts)<3600000&&S._lastShownCall!==data.__call.ts){S._lastShownCall=data.__call.ts;showDriverReadyAlert(data.__call.bayNum);}if(force){// CSV_LOAD: reset TV dispatch banner so it can't stay stuck from a previous session
   if(S._tvDispatchTimer){clearTimeout(S._tvDispatchTimer);S._tvDispatchTimer=null;}if(S._tvCountdownInt){clearInterval(S._tvCountdownInt);S._tvCountdownInt=null;}const _fb=document.getElementById('tvDispatchBanner');if(_fb)_fb.style.display='none';}if(!force&&data.__gen!==undefined){if(data.__gen<S.stateGen)return;if(data.__gen===S.stateGen&&data.__ts!==undefined&&S._stateTs&&data.__ts<S._stateTs)return;}// Reject state from before the last clear

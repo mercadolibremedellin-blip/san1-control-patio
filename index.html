@@ -873,6 +873,7 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
       <button class="btn btn-green btn-sm" id="csvBtn" onclick="triggerCSV()">&#x1F4C2; CSV</button>
       <input id="csvFile" type="file" accept=".csv,.CSV" style="display:none" onchange="loadCSV(event)">
       <button class="btn btn-amber btn-sm" onclick="exportHistory()">&#x1F4CA; Historial</button>
+      <button class="btn btn-sm" style="background:#6366F1;color:#fff" onclick="openHistoricoModal()">&#x1F4C5; 8 Días</button>
       <button class="btn btn-gray btn-sm" onclick="toggleSettings()">&#x1F517; Sync</button>
       <button class="btn btn-dark btn-sm" onclick="openBayManager()">&#x1F5C2; Muelles</button>
     </div>
@@ -2832,7 +2833,7 @@ function openResumen(){
 }
 
 /* LOCAL STORAGE */
-function saveLocal(){S.stateGen++;S._stateTs=Date.now();try{const save={};ALL_BAYS.forEach(n=>{const b=S.bays[n];save[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds};});localStorage.setItem('san1_bays',JSON.stringify(save));localStorage.setItem('san1_hist',JSON.stringify(S.history.slice(-500)));localStorage.setItem('san1_gen',String(S.stateGen));localStorage.setItem('san1_state_ts',String(S._stateTs));localStorage.setItem('san1_dispatch_ola',String(S.dispatchedOla||0));}catch(e){}}
+function saveLocal(){S.stateGen++;S._stateTs=Date.now();try{const save={};ALL_BAYS.forEach(n=>{const b=S.bays[n];save[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds};});localStorage.setItem('san1_bays',JSON.stringify(save));localStorage.setItem('san1_hist',JSON.stringify(S.history.slice(-500)));localStorage.setItem('san1_gen',String(S.stateGen));localStorage.setItem('san1_state_ts',String(S._stateTs));localStorage.setItem('san1_dispatch_ola',String(S.dispatchedOla||0));}catch(e){}archiveHistory();}
 function loadLocalState(){try{const raw=localStorage.getItem('san1_bays');if(raw){S.stateReady=true;const g=localStorage.getItem('san1_gen');if(g)S.stateGen=parseInt(g)||0;const _ts=localStorage.getItem('san1_state_ts');if(_ts)S._stateTs=parseInt(_ts)||0;// Solo es dueño del estado si fue guardado HOY — si es de ayer, espera estado fresco
 const _today=new Date();_today.setHours(0,0,0,0);const _todayMs=_today.getTime();S.isStateOwner=S._stateTs>=_todayMs;// Solo restaurar dispatchedOla si el estado es de HOY — ayer quedó en 1 y causaba bugs en TV
 const _dol=localStorage.getItem('san1_dispatch_ola');if(_dol!==null&&S._stateTs>=_todayMs)S.dispatchedOla=parseInt(_dol)||0;const data=JSON.parse(raw);ALL_BAYS.forEach(n=>{if(!data[n])return;const d=data[n],b=S.bays[n];b.status=d.status||'empty';b.queue=d.queue||[];b.currentIdx=d.currentIdx||0;b.entryTime=d.entryTime?new Date(d.entryTime):null;b.elapsedSeconds=d.elapsedSeconds||0;if(b.status==='occupied'&&b.entryTime)b.elapsedSeconds=Math.floor((Date.now()-b.entryTime.getTime())/1000);});}const rh=localStorage.getItem('san1_hist');if(rh)S.history=JSON.parse(rh);loadActivityLog();}catch(e){}// Force-empty if a clear happened after last save
@@ -3116,6 +3117,89 @@ function reconnectFromInactive(){
 _resetInact();
 // ── end Ably optimization ─────────────────────────────────────────────────────
 
+// ── Histórico 8 días ─────────────────────────────────────────────────────────
+let _historicoDay=null; // fecha seleccionada actualmente en el modal
+
+function archiveHistory(){
+  try{
+    const raw=localStorage.getItem('san1_hist_archive');
+    const archive=raw?JSON.parse(raw):[];
+    const cutoff=Date.now()-8*24*60*60*1000;
+    // Merge current session entries
+    const seen=new Set(archive.map(h=>h.doca+'|'+h.patente+'|'+h.ingreso));
+    S.history.forEach(h=>{if(!seen.has(h.doca+'|'+h.patente+'|'+h.ingreso)){archive.push({...h});seen.add(h.doca+'|'+h.patente+'|'+h.ingreso);}});
+    // Prune entries older than 8 days
+    const pruned=archive.filter(h=>{try{return new Date(h.ingreso).getTime()>=cutoff;}catch(e){return true;}});
+    localStorage.setItem('san1_hist_archive',JSON.stringify(pruned));
+  }catch(e){}
+}
+
+function openHistoricoModal(){
+  archiveHistory();
+  const raw=localStorage.getItem('san1_hist_archive');
+  const archive=raw?JSON.parse(raw):[];
+  // Group by locale date string
+  const byDate={};
+  archive.forEach(h=>{
+    try{const d=new Date(h.ingreso).toLocaleDateString('es-CO',{weekday:'short',day:'2-digit',month:'short'});if(!byDate[d])byDate[d]=[];byDate[d].push(h);}catch(e){}
+  });
+  const dates=Object.keys(byDate).sort((a,b)=>{
+    try{return new Date(byDate[b][0].ingreso)-new Date(byDate[a][0].ingreso);}catch(e){return 0;}
+  });
+  // Render day chips
+  const chips=document.getElementById('historicoDayChips');
+  chips.innerHTML='';
+  if(!dates.length){chips.innerHTML='<span style="color:#6B7280;font-size:.8rem">Sin datos almacenados aún</span>';}
+  dates.forEach((d,i)=>{
+    const btn=document.createElement('button');
+    btn.textContent=d+' ('+byDate[d].length+')';
+    btn.style.cssText='padding:5px 12px;border-radius:20px;border:1.5px solid '+(i===0?'#6366F1':'#374151')+';background:'+(i===0?'#6366F1':'transparent')+';color:'+(i===0?'#fff':'#94A3B8')+';font-size:.72rem;font-weight:600;cursor:pointer;white-space:nowrap';
+    btn.onclick=()=>{_historicoDay=d;renderHistoricoTable(byDate[d]);chips.querySelectorAll('button').forEach(b=>{b.style.background='transparent';b.style.color='#94A3B8';b.style.borderColor='#374151';});btn.style.background='#6366F1';btn.style.color='#fff';btn.style.borderColor='#6366F1';};
+    chips.appendChild(btn);
+    if(i===0){_historicoDay=d;} // auto-select most recent
+  });
+  // Render most recent day
+  if(dates.length)renderHistoricoTable(byDate[dates[0]]);
+  else{document.getElementById('historicoBody').innerHTML='';document.getElementById('historicoEmpty').style.display='block';}
+  document.getElementById('historicoModal').classList.add('show');
+}
+
+function renderHistoricoTable(rows){
+  const tbody=document.getElementById('historicoBody');
+  const empty=document.getElementById('historicoEmpty');
+  if(!rows||!rows.length){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tbody.innerHTML=rows.slice().sort((a,b)=>{try{return new Date(b.ingreso)-new Date(a.ingreso);}catch(e){return 0;}}).map((h,i)=>
+    '<tr style="background:'+(i%2===0?'transparent':'rgba(255,255,255,.02)')+'">'+
+    '<td style="padding:5px 8px;font-weight:700">'+h.doca+'</td>'+
+    '<td style="padding:5px 8px;font-weight:800;letter-spacing:.5px">'+h.patente+'</td>'+
+    '<td style="padding:5px 8px;color:#9CA3AF;font-size:.7rem">'+h.transportadora+'</td>'+
+    '<td style="padding:5px 8px;color:#9CA3AF;font-size:.7rem">'+h.ruta+'</td>'+
+    '<td style="padding:5px 8px"><span style="background:'+WAVE_BG[h.ola||0]+';color:#fff;padding:1px 6px;border-radius:3px;font-size:.68rem;font-weight:700">'+h.ola+'</span></td>'+
+    '<td style="padding:5px 8px;color:#9CA3AF;font-size:.7rem">'+(h.ingreso||'').split(',').pop().trim()+'</td>'+
+    '<td style="padding:5px 8px;color:#9CA3AF;font-size:.7rem">'+(h.salida||'').split(',').pop().trim()+'</td>'+
+    '<td style="padding:5px 8px;font-weight:700;color:#34D399">'+h.tiempo+'</td>'+
+    '</tr>'
+  ).join('');
+}
+
+function exportHistoricoCSV(allDays){
+  archiveHistory();
+  const raw=localStorage.getItem('san1_hist_archive');
+  const archive=raw?JSON.parse(raw):[];
+  let rows;
+  let filename;
+  if(allDays){rows=archive;filename='historico_san1_8dias_'+new Date().toISOString().slice(0,10)+'.csv';}
+  else{rows=archive.filter(h=>{try{const d=new Date(h.ingreso).toLocaleDateString('es-CO',{weekday:'short',day:'2-digit',month:'short'});return d===_historicoDay;}catch(e){return false;}});filename='historico_san1_'+(_historicoDay||'dia').replace(/[^a-zA-Z0-9]/g,'_')+'.csv';}
+  if(!rows.length){toast('Sin datos para exportar','warning');return;}
+  const hdr=['Doca','Patente','Transportadora','Ruta','Ola','Ingreso','Salida','Tiempo Total'];
+  const csv=[hdr,...rows.map(h=>[h.doca,h.patente,h.transportadora,h.ruta,h.ola,h.ingreso,h.salida,h.tiempo])].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+  toast('Exportado: '+rows.length+' registros','success');
+}
+// ── end Histórico 8 días ──────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded',init);
 </script>
 <!-- CYCLE MODAL -->
@@ -3141,3 +3225,32 @@ document.addEventListener('DOMContentLoaded',init);
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-green" style="flex:1;justify-content:center" onclick="saveCycles()">💾 Guardar</button>
       <button class="btn btn-gray" style="flex:1;justify-content:center" onclick="closeModal('cycleModal')">Cerrar</button>
+  </div></div>
+
+<div class="overlay" id="historicoModal" onclick="if(event.target===this)closeModal('historicoModal')">
+  <div class="modal-box" style="max-width:760px;width:96vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column">
+    <div class="modal-title">📅 Histórico — Últimos 8 Días</div>
+    <div id="historicoDayChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+    <div style="flex:1;overflow-y:auto;min-height:0">
+      <table style="width:100%;border-collapse:collapse;font-size:.75rem" id="historicoTable">
+        <thead><tr style="background:#1E293B;color:#94A3B8;text-align:left">
+          <th style="padding:6px 8px">Doca</th>
+          <th style="padding:6px 8px">Placa</th>
+          <th style="padding:6px 8px">Empresa</th>
+          <th style="padding:6px 8px">Ruta</th>
+          <th style="padding:6px 8px">Ola</th>
+          <th style="padding:6px 8px">Ingreso</th>
+          <th style="padding:6px 8px">Salida</th>
+          <th style="padding:6px 8px">Tiempo</th>
+        </tr></thead>
+        <tbody id="historicoBody"></tbody>
+      </table>
+      <div id="historicoEmpty" style="display:none;text-align:center;color:#6B7280;padding:32px;font-size:.85rem">Sin registros para este día</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn btn-green btn-sm" onclick="exportHistoricoCSV(false)">📥 Exportar día</button>
+      <button class="btn btn-sm" style="background:#6366F1;color:#fff" onclick="exportHistoricoCSV(true)">📥 Exportar 8 días</button>
+      <button class="btn btn-gray btn-sm" style="margin-left:auto" onclick="closeModal('historicoModal')">Cerrar</button>
+    </div>
+  </div>
+</div>

@@ -2233,8 +2233,8 @@ function preinConfirm(){
   document.getElementById('preinSearchResult').innerHTML='';
   document.getElementById('preinSearchInput').focus();
 }
-function doPreIn(){const n=S.selectedBay;if(!n)return;const b=S.bays[n];if(b.status!=='waiting')return;b.status='prein';const v=b.queue[b.currentIdx];addActivity('prein','Doca '+n,v?v.patente+' en patio':'');refreshBayEl(n);updateStats();renderActivityFeed();saveLocal();broadcastState();toast('Pre-ingreso: '+(v?v.patente:'')+'  Muelle '+n,'success');closeBayModal();}
-function doQueuePreIn(bayNum,queueIdx){const b=S.bays[bayNum];if(!b)return;const v=b.queue[queueIdx];if(!v)return;v.prein=!v.prein;addActivity('prein','Doca '+bayNum,(v.patente||'')+(v.prein?' en patio (cola)':' retirado de patio'));renderPendingQueue();renderScannerQueue();updateStats();saveLocal();broadcastState();toast((v.prein?'En Patio: ':'Retirado: ')+(v.patente||'')+' Muelle '+bayNum,'success');closeBayModal();}
+function doPreIn(){const n=S.selectedBay;if(!n)return;const b=S.bays[n];if(b.status!=='waiting')return;b.status='prein';const v=b.queue[b.currentIdx];addActivity('prein','Doca '+n,v?v.patente+' en patio':'');refreshBayEl(n);updateStats();renderActivityFeed();saveLocal();broadcastState();toast('Pre-ingreso: '+(v?v.patente:'')+'  Muelle '+n,'success');closeBayModal();checkPreinDispatch();}
+function doQueuePreIn(bayNum,queueIdx){const b=S.bays[bayNum];if(!b)return;const v=b.queue[queueIdx];if(!v)return;v.prein=!v.prein;addActivity('prein','Doca '+bayNum,(v.patente||'')+(v.prein?' en patio (cola)':' retirado de patio'));renderPendingQueue();renderScannerQueue();updateStats();saveLocal();broadcastState();toast((v.prein?'En Patio: ':'Retirado: ')+(v.patente||'')+' Muelle '+bayNum,'success');closeBayModal();if(v.prein)checkPreinDispatch();}
 function doEnter(){const n=S.selectedBay;if(!n)return;const b=S.bays[n];if(b.status!=='waiting'&&b.status!=='prein')return;b.status='occupied';b.preInReady=false;b.entryTime=new Date();b.elapsedSeconds=0;const v=b.queue[b.currentIdx];addActivity('in','Doca '+n,v?v.patente+' '+v.ruta:'');refreshBayEl(n);updateStats();renderActivityFeed();saveLocal();broadcastState();toast('Ingresado: '+(v?v.patente:'')+'  Muelle '+n,'success');closeBayModal();}
 function doExit(){const n=S.selectedBay;if(!n)return;const b=S.bays[n];if(b.status!=='occupied')return;const cur=b.queue[b.currentIdx];const dur=fmt(b.elapsedSeconds);const exitOla=cur.ola||0;S.history.push({doca:n,patente:cur.patente||'',transportadora:cur.transportadora||'',ruta:cur.ruta||'',ola:cur.ola||'',ingreso:b.entryTime?b.entryTime.toLocaleString():'',salida:new Date().toLocaleString(),tiempo:dur});addActivity('out','Doca '+n,cur?cur.patente+' ('+dur+') '+cur.ruta:'');b.currentIdx++;b.entryTime=null;b.elapsedSeconds=0;
   if(b.currentIdx<b.queue.length){
@@ -2392,7 +2392,7 @@ function renderAllRoutes(){
 
 /* WAVE DISPATCH */
 function openWaveDispatch(){const present=new Set();ALL_BAYS.forEach(n=>S.bays[n].queue.forEach(v=>{if(v.ola)present.add(v.ola);}));const grid=document.getElementById('waveGrid');grid.innerHTML='';[1,2,3,4,5,6].forEach(o=>{const btn=document.createElement('button');btn.className='wave-btn wave-btn-'+o;const count=ALL_BAYS.reduce((a,n)=>a+S.bays[n].queue.filter(v=>v.ola===o).length,0);btn.innerHTML='Ola '+o+'<br><span style="font-size:.65rem;font-weight:500;opacity:.8">'+count+' vh</span>';btn.disabled=!present.has(o);btn.onclick=()=>dispatchWave(o);grid.appendChild(btn);});document.getElementById('waveDispatchModal').classList.add('show');}
-function dispatchWave(ola){if(!confirm('Enviar despacho para OLA '+ola+'?'))return;closeModal('waveDispatchModal');const _wdTs=Date.now();S.pendingWaveDispatch=_wdTs;broadcastEvent('WAVE_DISPATCH',{ola,time:new Date().toLocaleTimeString(),ts:_wdTs});addActivity('dispatch','Ola '+ola+' despachada','');renderActivityFeed();SND.dispatch();speakOla(ola);toast('Despacho enviado - Ola '+ola,'success');}
+function dispatchWave(ola){if(!confirm('Enviar despacho para OLA '+ola+'?'))return;closeModal('waveDispatchModal');S.dispatchedOla=Math.max(S.dispatchedOla||0,ola);const _wdTs=Date.now();S.pendingWaveDispatch=_wdTs;broadcastEvent('WAVE_DISPATCH',{ola,time:new Date().toLocaleTimeString(),ts:_wdTs});addActivity('dispatch','Ola '+ola+' despachada','');renderActivityFeed();SND.dispatch();speakOla(ola);saveLocal();broadcastState(true);toast('Despacho enviado - Ola '+ola,'success');}
 function showDispatchAlert(ola){document.getElementById('daOlaLabel').textContent='OLA '+ola;document.getElementById('dispatchAlert').classList.add('show');SND.dispatch();}
 function closeDispatchAlert(){document.getElementById('dispatchAlert').classList.remove('show');}
 function inicioDespacho(){
@@ -2412,6 +2412,18 @@ function inicioDespacho(){
   renderActivityFeed();SND.dispatch();saveLocal();broadcastState();
   speakOla(startOla);
   toast('Despacho iniciado — Ola '+startOla,'success');
+}
+function checkPreinDispatch(){
+  // Si todos los vehículos de la ola despachada ya están en prein u occupied (ninguno en espera pura),
+  // avanzar automáticamente a la siguiente ola
+  const N=S.dispatchedOla;if(!N)return;
+  let anyStillWaiting=false;
+  ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='waiting'){const cur=b.queue[b.currentIdx];if(cur&&(cur.ola===N||cur.ola===String(N)))anyStillWaiting=true;}});
+  if(!anyStillWaiting){
+    let nextOla=0;
+    for(let o=N+1;o<=6&&!nextOla;o++){ALL_BAYS.forEach(n=>{if(nextOla)return;const b=S.bays[n];for(let i=b.currentIdx;i<b.queue.length;i++){if(b.queue[i].ola===o){nextOla=o;return;}}});}
+    if(nextOla){S.dispatchedOla=nextOla;const _ts=Date.now();S.pendingWaveDispatch=_ts;broadcastEvent('WAVE_DISPATCH',{ola:nextOla,time:new Date().toLocaleTimeString(),ts:_ts});addActivity('dispatch','Despacho automático — Ola '+nextOla,'(Ola '+N+' toda en patio)');renderActivityFeed();SND.dispatch();saveLocal();broadcastState(true);toast('Despacho automático — Ola '+nextOla,'success');}
+  }
 }
 function checkAutoDispatch(triggeredOla){
   if(!S.dispatchedOla||triggeredOla!==S.dispatchedOla)return;
@@ -2881,7 +2893,24 @@ function manualReconnect(){
 function broadcastEvent(type,data){try{S.bc&&S.bc.postMessage({type,data});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish(type,data);}catch(e){}}
 function applyRemote(data,force){if(!data)return;if(data.__call&&S.driverPlate&&data.__call.plate&&data.__call.plate.toUpperCase()===S.driverPlate.toUpperCase()&&(Date.now()-data.__call.ts)<3600000&&S._lastShownCall!==data.__call.ts){S._lastShownCall=data.__call.ts;showDriverReadyAlert(data.__call.bayNum);}if(force){// CSV_LOAD: reset TV dispatch banner so it can't stay stuck from a previous session
   if(S._tvDispatchTimer){clearTimeout(S._tvDispatchTimer);S._tvDispatchTimer=null;}if(S._tvCountdownInt){clearInterval(S._tvCountdownInt);S._tvCountdownInt=null;}const _fb=document.getElementById('tvDispatchBanner');if(_fb)_fb.style.display='none';}if(!force&&data.__gen!==undefined){if(data.__gen<S.stateGen)return;if(data.__gen===S.stateGen&&data.__ts!==undefined&&S._stateTs&&data.__ts<S._stateTs)return;}// Reject state from before the last clear
-const _clrGuard=parseInt(localStorage.getItem('san1_clear_ts')||'0');if(_clrGuard&&data.__ts&&data.__ts<_clrGuard)return;S._gotRemoteState=true;S.stateReady=true;ALL_BAYS.forEach(n=>{const r=data[n];if(!r)return;const b=S.bays[n];b.status=r.status;b.queue=r.queue||[];b.currentIdx=r.currentIdx||0;b.entryTime=r.entryTime?new Date(r.entryTime):null;b.elapsedSeconds=r.elapsedSeconds||0;if(b.status==='occupied'&&b.entryTime)b.elapsedSeconds=Math.floor((Date.now()-b.entryTime.getTime())/1000);refreshBayEl(n);});updateStats();renderActivityFeed();if(AUTH.current&&AUTH.current.role==='coordinator')renderCoordDash();if(S.scannerOpen){renderScannerQueue();renderScanHist();}document.getElementById('lastSync').textContent='Sync: '+new Date().toLocaleTimeString();if(data.__dispatchOla!==undefined){const _todayMs=new Date().setHours(0,0,0,0);const _stateIsToday=!data.__ts||(data.__ts>=_todayMs);if(!S._tvMode||_stateIsToday||force)S.dispatchedOla=data.__dispatchOla;}if(data.__gen!==undefined)S.stateGen=data.__gen;if(data.__ts!==undefined){S._stateTs=data.__ts;try{localStorage.setItem('san1_state_ts',String(S._stateTs));}catch(e){}}
+const _clrGuard=parseInt(localStorage.getItem('san1_clear_ts')||'0');if(_clrGuard&&data.__ts&&data.__ts<_clrGuard)return;S._gotRemoteState=true;S.stateReady=true;
+const _SR={empty:0,blocked:0,waiting:1,prein:2,occupied:3};
+ALL_BAYS.forEach(n=>{const r=data[n];if(!r)return;const b=S.bays[n];
+  // Smart merge: never regress a bay that was locally advanced at the same queue position
+  // (prevents stale STATE from overwriting a fresh local scan entry)
+  const sameIdx=(r.currentIdx||0)===b.currentIdx;
+  const remoteRank=_SR[r.status]||0;
+  const localRank=_SR[b.status]||0;
+  if(sameIdx&&remoteRank<localRank){
+    // Remote is stale — keep local status/entryTime, but still update queue
+    b.queue=r.queue||b.queue;
+  } else {
+    b.status=r.status;b.queue=r.queue||[];b.currentIdx=r.currentIdx||0;
+    b.entryTime=r.entryTime?new Date(r.entryTime):null;
+    b.elapsedSeconds=r.elapsedSeconds||0;
+    if(b.status==='occupied'&&b.entryTime)b.elapsedSeconds=Math.floor((Date.now()-b.entryTime.getTime())/1000);
+  }
+  refreshBayEl(n);});updateStats();renderActivityFeed();if(AUTH.current&&AUTH.current.role==='coordinator')renderCoordDash();if(S.scannerOpen){renderScannerQueue();renderScanHist();}document.getElementById('lastSync').textContent='Sync: '+new Date().toLocaleTimeString();if(data.__dispatchOla!==undefined){const _todayMs=new Date().setHours(0,0,0,0);const _stateIsToday=!data.__ts||(data.__ts>=_todayMs);if(!S._tvMode||_stateIsToday||force)S.dispatchedOla=data.__dispatchOla;}if(data.__gen!==undefined)S.stateGen=data.__gen;if(data.__ts!==undefined){S._stateTs=data.__ts;try{localStorage.setItem('san1_state_ts',String(S._stateTs));}catch(e){}}
 // Merge remote history into local (union by doca+patente+ingreso key)
 if(Array.isArray(data.__hist)&&data.__hist.length){const _seen=new Set(S.history.map(h=>h.doca+'|'+h.patente+'|'+h.ingreso));const _new=data.__hist.filter(h=>!_seen.has(h.doca+'|'+h.patente+'|'+h.ingreso));if(_new.length){S.history=S.history.concat(_new).sort((a,b)=>new Date(a.ingreso)-new Date(b.ingreso));try{localStorage.setItem('san1_hist',JSON.stringify(S.history.slice(-500)));}catch(e){}}}
 if(S.driverPlate)refreshDriverScreen(S.driverPlate);if(S._tvMode)renderTVDisplay();try{const _sv={};ALL_BAYS.forEach(n=>{const b=S.bays[n];_sv[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds};});localStorage.setItem('san1_bays',JSON.stringify(_sv));localStorage.setItem('san1_gen',String(S.stateGen));}catch(e){}}

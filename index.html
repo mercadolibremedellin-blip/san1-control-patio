@@ -874,7 +874,8 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
       <input id="csvFile" type="file" accept=".csv,.CSV" style="display:none" onchange="loadCSV(event)">
       <button class="btn btn-amber btn-sm" onclick="exportHistory()">&#x1F4CA; Historial</button>
       <button class="btn btn-sm" style="background:#6366F1;color:#fff" onclick="openHistoricoModal()">&#x1F4C5; 8 Días</button>
-      <button class="btn btn-gray btn-sm" onclick="toggleSettings()">&#x1F517; Sync</button>
+      <button class="btn btn-gray btn-sm" onclick="forceResync()" title="Forzar sincronización a todos los dispositivos">&#x1F504; Sync</button>
+      <button class="btn btn-gray btn-sm" onclick="toggleSettings()" title="Configuración" style="padding:4px 8px">&#x2699;&#xFE0F;</button>
       <button class="btn btn-dark btn-sm" onclick="openBayManager()">&#x1F5C2; Muelles</button>
     </div>
     <div id="monitorControls" style="display:none;gap:5px;align-items:center;flex-shrink:0">
@@ -2698,6 +2699,19 @@ function toggleSettings(){
   }
 }
 function saveSettings(){const k=document.getElementById('ablyKeyInput').value.trim(),ch=document.getElementById('channelInput').value.trim()||'san1-patio';S.ablyKey=k;S.channelName=ch;localStorage.setItem('san1_ably_key',k);localStorage.setItem('san1_channel',ch);if(k){setupAbly(k,ch);toast('Conectando a Ably...','success');}else toast('Guardado (modo local)','warning');toggleSettings();}
+function forceResync(){
+  // Build CSV_LOAD-style payload from current state and broadcast with force=true
+  // This overrides stateGen on all receiving devices — cannot be rejected
+  S.stateGen=Date.now();S._stateTs=Date.now();S.isStateOwner=true;
+  const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds};});
+  p.__gen=S.stateGen;p.__ts=S._stateTs;p.__dispatchOla=S.dispatchedOla||0;p.__call=S.pendingDriverCall||null;p.__hist=S.history.slice(-150);
+  S.isBroadcasting=true;
+  try{S.bc&&S.bc.postMessage({type:'CSV_LOAD',data:p});}catch(e){}
+  try{S.ablyChannel&&S.ablyChannel.publish('CSV_LOAD',p);}catch(e){}
+  setTimeout(()=>S.isBroadcasting=false,200);
+  setTimeout(()=>broadcastState(true),1500);
+  toast('Estado enviado a todos los dispositivos','success');
+}
 function clearAllData(){if(!confirm('Limpiar TODOS los datos para nuevo turno?'))return;if(!confirm('CONFIRMACION FINAL: Borrar todo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];S.dispatchedOla=0;S.isStateOwner=true;S.stateGen=Date.now();renderLayout();saveLocal();const _clrTs2=Date.now()+10;try{localStorage.setItem('san1_clear_ts',String(_clrTs2));}catch(e){}broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs2,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Turno limpiado','success');}
 function limpiarEstacionamientos(){if(!confirm('¿Limpiar todos los estacionamientos y dejarlos listos para el siguiente ciclo?'))return;ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];try{localStorage.removeItem('san1_hist');localStorage.removeItem('san1_actlog');}catch(e){}S.isStateOwner=true;S.stateGen=Date.now();renderLayout();renderActivityFeed();saveLocal();const _clrTs=Date.now()+10;try{localStorage.setItem('san1_clear_ts',String(_clrTs));}catch(e){}broadcastState();if(S.ablyChannel){try{S.ablyChannel.publish('FORCE_CLEAR',{ts:_clrTs,by:AUTH.currentUser||'admin'});}catch(e){}}toast('Estacionamientos limpiados','success');}
 

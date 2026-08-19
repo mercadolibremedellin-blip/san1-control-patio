@@ -1361,6 +1361,12 @@ async function init(){
   // Initialize all possible bays so any can be activated later
   ALL_POSSIBLE_BAYS.forEach(n=>{S.bays[n]={number:n,status:'empty',queue:[],currentIdx:0,entryTime:null,elapsedSeconds:0};});
   loadLocalState();
+  // Si hay vehículos en cola de un turno anterior, preguntar si continuar o limpiar
+  const _totalQueued=ALL_BAYS.reduce((a,n)=>{const b=S.bays[n];return a+(b.queue.length>b.currentIdx?b.queue.length-b.currentIdx:0);},0);
+  if(_totalQueued>0&&S.stateReady){
+    const _cont=confirm('Se encontró un turno anterior con '+_totalQueued+' vehículo(s) en cola.\n\n¿Deseas continuar ese turno?\n\nSi presionas CANCELAR se limpiará el patio para iniciar uno nuevo.');
+    if(!_cont){ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});S.dispatchedOla=0;S.stateGen=Date.now();try{localStorage.removeItem('san1_bays');localStorage.removeItem('san1_hist');}catch(e){}S.history=[];}
+  }
   const session=await AUTH.init();
   if(session==='staff'){document.getElementById('loginOverlay').style.display='none';showApp();}
   else if(session&&session.startsWith('driver:')){document.getElementById('loginOverlay').style.display='none';S.driverPlate=session.split(':')[1];S.driverDoc=localStorage.getItem('san1_drvdoc')||null;showDriverScreen(S.driverPlate);}

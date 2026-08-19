@@ -1366,7 +1366,7 @@ async function init(){
     localStorage.setItem('san1_app_ver',_appVer);
     try{localStorage.removeItem('san1_bays');localStorage.removeItem('san1_hist');localStorage.removeItem('san1_gen');localStorage.removeItem('san1_state_ts');localStorage.removeItem('san1_dispatch_ola');localStorage.removeItem('san1_alerted_bays');}catch(e){}
     ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});
-    S.history=[];S.dispatchedOla=0;S.stateGen=Date.now();S.stateReady=false;S.isStateOwner=false;
+    S.history=[];S.dispatchedOla=0;S.stateGen=0;S.stateReady=false;S.isStateOwner=false;
   } else {
     loadLocalState();
   }

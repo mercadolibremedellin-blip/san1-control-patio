@@ -2836,7 +2836,7 @@ function openResumen(){
 function saveLocal(){S.stateGen++;S._stateTs=Date.now();try{const save={};ALL_BAYS.forEach(n=>{const b=S.bays[n];save[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds};});localStorage.setItem('san1_bays',JSON.stringify(save));localStorage.setItem('san1_hist',JSON.stringify(S.history.slice(-500)));localStorage.setItem('san1_gen',String(S.stateGen));localStorage.setItem('san1_state_ts',String(S._stateTs));localStorage.setItem('san1_dispatch_ola',String(S.dispatchedOla||0));}catch(e){}archiveHistory();}
 function loadLocalState(){try{const raw=localStorage.getItem('san1_bays');if(raw){S.stateReady=true;const g=localStorage.getItem('san1_gen');if(g)S.stateGen=parseInt(g)||0;const _ts=localStorage.getItem('san1_state_ts');if(_ts)S._stateTs=parseInt(_ts)||0;// Solo es dueño del estado si fue guardado HOY — si es de ayer, espera estado fresco
 const _today=new Date();_today.setHours(0,0,0,0);const _todayMs=_today.getTime();S.isStateOwner=S._stateTs>=_todayMs;// Solo restaurar dispatchedOla si el estado es de HOY — ayer quedó en 1 y causaba bugs en TV
-const _dol=localStorage.getItem('san1_dispatch_ola');if(_dol!==null&&S._stateTs>=_todayMs)S.dispatchedOla=parseInt(_dol)||0;const data=JSON.parse(raw);ALL_BAYS.forEach(n=>{if(!data[n])return;const d=data[n],b=S.bays[n];b.status=d.status||'empty';b.queue=d.queue||[];b.currentIdx=d.currentIdx||0;b.entryTime=d.entryTime?new Date(d.entryTime):null;b.elapsedSeconds=d.elapsedSeconds||0;if(b.status==='occupied'&&b.entryTime)b.elapsedSeconds=Math.floor((Date.now()-b.entryTime.getTime())/1000);});}const rh=localStorage.getItem('san1_hist');if(rh)S.history=JSON.parse(rh);loadActivityLog();}catch(e){}// Force-empty if a clear happened after last save
+const _dol=localStorage.getItem('san1_dispatch_ola');if(_dol!==null&&S._stateTs>=_todayMs)S.dispatchedOla=parseInt(_dol)||0;const data=JSON.parse(raw);const _localStaleGuard=Date.now()-8*60*60*1000;ALL_BAYS.forEach(n=>{if(!data[n])return;const d=data[n],b=S.bays[n];b.queue=d.queue||[];b.currentIdx=d.currentIdx||0;const _et=d.entryTime?new Date(d.entryTime).getTime():0;if(d.status==='occupied'&&_et<_localStaleGuard){b.status='waiting';b.entryTime=null;b.elapsedSeconds=0;}else{b.status=d.status||'empty';b.entryTime=d.entryTime?new Date(d.entryTime):null;b.elapsedSeconds=d.elapsedSeconds||0;if(b.status==='occupied'&&b.entryTime)b.elapsedSeconds=Math.floor((Date.now()-b.entryTime.getTime())/1000);}});}const rh=localStorage.getItem('san1_hist');if(rh)S.history=JSON.parse(rh);loadActivityLog();}catch(e){}// Force-empty if a clear happened after last save
 try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=parseInt(localStorage.getItem('san1_state_ts')||'0');if(_fc>0&&_fc>=_fs){ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});S.stateGen=Date.now();S.isStateOwner=true;}}catch(e){}}
 
 /* REAL-TIME */
@@ -2896,14 +2896,22 @@ function applyRemote(data,force){if(!data)return;if(data.__call&&S.driverPlate&&
   if(S._tvDispatchTimer){clearTimeout(S._tvDispatchTimer);S._tvDispatchTimer=null;}if(S._tvCountdownInt){clearInterval(S._tvCountdownInt);S._tvCountdownInt=null;}const _fb=document.getElementById('tvDispatchBanner');if(_fb)_fb.style.display='none';}if(!force&&data.__gen!==undefined){if(data.__gen<S.stateGen)return;if(data.__gen===S.stateGen&&data.__ts!==undefined&&S._stateTs&&data.__ts<S._stateTs)return;}// Reject state from before the last clear
 const _clrGuard=parseInt(localStorage.getItem('san1_clear_ts')||'0');if(_clrGuard&&data.__ts&&data.__ts<_clrGuard)return;S._gotRemoteState=true;S.stateReady=true;
 const _SR={empty:0,blocked:0,waiting:1,prein:2,occupied:3};
+const _staleGuard=Date.now()-8*60*60*1000; // entryTime > 8h ago = stale session
 ALL_BAYS.forEach(n=>{const r=data[n];if(!r)return;const b=S.bays[n];
+  // Sanity check: reject occupied status with ancient entryTime (previous session)
+  if(r.status==='occupied'&&r.entryTime){
+    const _et=new Date(r.entryTime).getTime();
+    if(_et<_staleGuard){
+      // Ancient entryTime — keep queue/idx but don't apply stale occupied state
+      b.queue=r.queue||b.queue;b.currentIdx=r.currentIdx||0;
+      refreshBayEl(n);return;
+    }
+  }
   // Smart merge: never regress a bay that was locally advanced at the same queue position
-  // (prevents stale STATE from overwriting a fresh local scan entry)
   const sameIdx=(r.currentIdx||0)===b.currentIdx;
   const remoteRank=_SR[r.status]||0;
   const localRank=_SR[b.status]||0;
   if(sameIdx&&remoteRank<localRank){
-    // Remote is stale — keep local status/entryTime, but still update queue
     b.queue=r.queue||b.queue;
   } else {
     b.status=r.status;b.queue=r.queue||[];b.currentIdx=r.currentIdx||0;

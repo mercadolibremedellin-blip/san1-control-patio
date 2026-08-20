@@ -2700,6 +2700,15 @@ function toggleSettings(){
 }
 function saveSettings(){const k=document.getElementById('ablyKeyInput').value.trim(),ch=document.getElementById('channelInput').value.trim()||'san1-patio';S.ablyKey=k;S.channelName=ch;localStorage.setItem('san1_ably_key',k);localStorage.setItem('san1_channel',ch);if(k){setupAbly(k,ch);toast('Conectando a Ably...','success');}else toast('Guardado (modo local)','warning');toggleSettings();}
 function forceResync(){
+  // Only the admin device is allowed to PUSH its state as the source of truth.
+  // Any other role just PULLS the current state from the admin — pushing from
+  // a non-admin device with stale/empty local data would wipe everyone else.
+  const _isAdminUser=AUTH.current&&AUTH.current.role==='admin';
+  if(!_isAdminUser){
+    try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}
+    toast('Solicitando estado actualizado...','success');
+    return;
+  }
   // Build CSV_LOAD-style payload from current state and broadcast with force=true
   // This overrides stateGen on all receiving devices — cannot be rejected
   S.stateGen=Date.now();S._stateTs=Date.now();S.isStateOwner=true;

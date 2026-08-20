@@ -2632,7 +2632,9 @@ function parseCSV(text){
   const iTR=idx('Tipo de ruta')>=0?idx('Tipo de ruta'):idx('Tipo Ruta')>=0?idx('Tipo Ruta'):-1;
   const iTMEC=idx('Ofensor TMEC')>=0?idx('Ofensor TMEC'):idx('Ofensora TMEC')>=0?idx('Ofensora TMEC'):idx('Ofensora')>=0?idx('Ofensora'):idx('Ofensor')>=0?idx('Ofensor'):-1;
   if(iD<0){toast('No se encontro columna de estacion (Estación WTD o Doca)','danger');return;}
-  ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status!=='blocked'){b.queue=[];b.currentIdx=0;b.status='empty';}});
+  // Parse into a temp structure FIRST — do not touch S.bays until we know the file is valid.
+  // This prevents wiping live progress if the CSV is empty/malformed.
+  const parsedByBay={};
   let count=0;
   for(let i=0;i<dataLines.length;i++){
     const c=csvLine(dataLines[i]);
@@ -2645,7 +2647,8 @@ function parseCSV(text){
     const olaFromDoca=rawDocaParts.length>1?parseInt(rawDocaParts[1])||0:0;
     const olaVal=iO>=0?parseInt(c[iO])||olaFromDoca:olaFromDoca;
     if(!olaVal)continue;
-    S.bays[d].queue.push({
+    if(!parsedByBay[d])parsedByBay[d]=[];
+    parsedByBay[d].push({
       ruta:(iR>=0?c[iR]||'':'').trim(),
       zona:(iZ>=0?c[iZ]||'':'').trim(),
       paradas:(iPar>=0?c[iPar]||'':'').trim(),
@@ -2659,22 +2662,45 @@ function parseCSV(text){
     });
     count++;
   }
-  let assigned=0;
-  ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.queue.sort((a,z)=>(a.ola||999)-(z.ola||999));b.currentIdx=0;if(b.queue.length>0){b.status='waiting';assigned++;}});
-  addActivity('csv','CSV cargado',count+' registros, '+assigned+' muelles');
-  S.isStateOwner=true;S.dispatchedOla=0;
+  if(count===0){toast('CSV no contiene registros válidos — no se modificó nada','danger');return;}
+  // Apply: NEVER touch a bay that already has operational progress (occupied, prein,
+  // or currentIdx>0 = ya tuvo salidas). This makes re-loading/updating the CSV mid-turno safe.
+  let assigned=0,preserved=0;
+  const _hadAnyProgress=ALL_BAYS.some(n=>{const b=S.bays[n];return b.status==='occupied'||b.status==='prein'||b.currentIdx>0;});
+  ALL_BAYS.forEach(n=>{
+    const b=S.bays[n];
+    if(b.status==='blocked')return;
+    const hasProgress=b.status==='occupied'||b.status==='prein'||b.currentIdx>0;
+    const newRows=parsedByBay[n];
+    if(hasProgress){
+      // Bay ya tiene actividad — no se toca, sin importar si el CSV trae filas para este muelle
+      if(newRows&&newRows.length)preserved++;
+      return;
+    }
+    if(newRows&&newRows.length){
+      newRows.sort((a,z)=>(a.ola||999)-(z.ola||999));
+      b.queue=newRows;b.currentIdx=0;b.status='waiting';assigned++;
+    } else {
+      // No hay filas nuevas para este muelle y no tiene progreso — lo dejamos vacío
+      b.queue=[];b.currentIdx=0;b.status='empty';
+    }
+  });
+  addActivity('csv','CSV cargado',count+' registros, '+assigned+' muelles actualizados'+(preserved?', '+preserved+' preservados (en curso)':''));
+  S.isStateOwner=true;
+  // Solo reiniciar la ola despachada si es una carga inicial (nada tenía progreso todavía)
+  if(!_hadAnyProgress)S.dispatchedOla=0;
   // Usar timestamp como stateGen — garantiza que el CSV siempre gana contra
   // cualquier estado viejo de otro dispositivo (gen incremental jamás alcanza Date.now())
   S.stateGen=Date.now();S._stateTs=Date.now();
   renderLayout();saveLocal();saveActivityLog();
   // Broadcast CSV_LOAD — include __gen/__ts so receiving devices reset their stateGen
   // and don't reject subsequent STATE broadcasts from the admin
-  const csvPayload={};ALL_BAYS.forEach(n=>{const b=S.bays[n];csvPayload[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:null,elapsedSeconds:0};});
-  csvPayload.__gen=S.stateGen;csvPayload.__ts=S._stateTs||0;csvPayload.__dispatchOla=0;csvPayload.__call=null;
+  const csvPayload={};ALL_BAYS.forEach(n=>{const b=S.bays[n];csvPayload[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds||0};});
+  csvPayload.__gen=S.stateGen;csvPayload.__ts=S._stateTs||0;csvPayload.__dispatchOla=S.dispatchedOla||0;csvPayload.__call=null;
   S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'CSV_LOAD',data:csvPayload});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('CSV_LOAD',csvPayload);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);
   // Follow-up broadcasts: ensures devices with brief lag also get the new state
   setTimeout(()=>broadcastState(true),1500);
-  toast('CSV cargado: '+count+' registros en '+assigned+' muelles','success');
+  toast('CSV cargado: '+count+' registros, '+assigned+' muelles actualizados'+(preserved?', '+preserved+' en curso preservados':''),'success',6000);
   if(S.scannerOpen){renderScannerQueue();renderScanHist();}
   if(AUTH.current&&AUTH.current.role==='coordinator')renderCoordDash();
 }
@@ -2937,16 +2963,27 @@ ALL_BAYS.forEach(n=>{const r=data[n];if(!r)return;const b=S.bays[n];
     const _et=new Date(r.entryTime).getTime();
     if(_et<_staleGuard){
       // Ancient entryTime — keep queue/idx but don't apply stale occupied state
-      b.queue=r.queue||b.queue;b.currentIdx=r.currentIdx||0;
+      // NOTE: r.queue||b.queue is a bug when r.queue is [] (empty array is truthy in JS)
+      b.queue=(r.queue&&r.queue.length)?r.queue:b.queue;b.currentIdx=r.currentIdx||0;
       refreshBayEl(n);return;
     }
+  }
+  // Anti-wipe guard: never let ANY remote message (incl. CSV_LOAD/force) erase a bay
+  // that already has real operational progress (occupied/prein, or advanced currentIdx)
+  // when the incoming record looks like a reset (currentIdx back to 0 and lower/no status).
+  // This is a second line of defense in case a future CSV load or force-push regresses.
+  const _localHasProgress=b.status==='occupied'||b.status==='prein'||b.currentIdx>0;
+  const _remoteLooksReset=(r.currentIdx||0)===0&&(r.status==='waiting'||r.status==='empty');
+  if(_localHasProgress&&_remoteLooksReset&&(r.currentIdx||0)<b.currentIdx){
+    refreshBayEl(n);return;
   }
   // Smart merge: never regress a bay that was locally advanced at the same queue position
   const sameIdx=(r.currentIdx||0)===b.currentIdx;
   const remoteRank=_SR[r.status]||0;
   const localRank=_SR[b.status]||0;
   if(sameIdx&&remoteRank<localRank){
-    b.queue=r.queue||b.queue;
+    // r.queue||b.queue is a bug when r.queue is [] (empty array is truthy) — fixed below
+    b.queue=(r.queue&&r.queue.length)?r.queue:b.queue;
   } else {
     b.status=r.status;b.queue=r.queue||[];b.currentIdx=r.currentIdx||0;
     b.entryTime=r.entryTime?new Date(r.entryTime):null;

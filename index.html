@@ -3144,28 +3144,46 @@ function toggleBayActive(n){
 // ── end Bay Manager ───────────────────────────────────────────────────────────
 
 // ── Ably connection optimization ─────────────────────────────────────────────
-// 1. Page Visibility API — disconnect when hidden, reconnect when visible
+// Retry loop: keeps trying to (re)connect + request fresh state every 2s until
+// confirmed connected AND state received, up to ~20s. Used on focus/visibility/online.
+function _fastResync(){
+  if(!S.ably)return;
+  let _tries=0;
+  const _step=()=>{
+    _tries++;
+    try{
+      const st=S.ably.connection.state;
+      if(st==='closed'||st==='suspended'||st==='failed'||st==='initialized'||st==='disconnected'){
+        S.ably.connection.connect();
+      }
+      if(S.ablyChannel)S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});
+    }catch(e){}
+    if(_tries<10&&S.ably.connection.state!=='connected'){setTimeout(_step,2000);}
+  };
+  _step();
+}
+// 1. Page Visibility API — reconnect + resync fast when tab becomes visible again
 document.addEventListener('visibilitychange',()=>{
   if(!S.ably)return;
   if(document.visibilityState==='hidden'){
     return; // nadie se desconecta al minimizar
   } else {
-    const st=S.ably.connection.state;
-    if(st==='closed'||st==='suspended'||st==='failed'||st==='initialized'){
-      try{S.ably.connection.connect();}catch(e){}
-    }
-    // Al volver al primer plano, pedir estado actualizado (incluye llamados pendientes)
-    setTimeout(()=>{try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}},1500);
+    _fastResync();
   }
 });
-// Verificación periódica cada 45s: si Ably cayó, reconectar y pedir estado
+// 2. Network recovery — WiFi/datos que se recuperan tras una caída
+window.addEventListener('online',()=>{_fastResync();});
+// 3. pageshow — cubre el caso de Safari/iOS restaurando la pestaña desde memoria (bfcache)
+window.addEventListener('pageshow',()=>{_fastResync();});
+// Verificación periódica cada 10s: si Ably cayó, reconectar y pedir estado (antes era cada 45s)
 setInterval(()=>{
   if(!S.ably)return;
   const _st=S.ably.connection.state;
   if(_st==='disconnected'||_st==='suspended'||_st==='failed'){
     try{S.ably.connection.connect();}catch(e){}
+    try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}
   }
-},45000);
+},10000);
 
 // 2. Inactivity timer — disconnect after 10 min idle, show reconnect overlay
 let _inactTimer=null;

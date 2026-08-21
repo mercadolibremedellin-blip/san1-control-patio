@@ -1376,7 +1376,16 @@ async function init(){
   else if(session&&session.startsWith('driver:')){document.getElementById('loginOverlay').style.display='none';S.driverPlate=session.split(':')[1];S.driverDoc=localStorage.getItem('san1_drvdoc')||null;showDriverScreen(S.driverPlate);}
   else{document.getElementById('loginOverlay').style.display='flex';}
   setupBC();
-  const k=localStorage.getItem('san1_ably_key')||'mAHK3w.EMtYaw:x54CigmIIIkDtpupGgJ_uMljUPPPveLPbxOezyjDf3c';const ch=localStorage.getItem('san1_channel')||'san1-patio';
+  // Migración de key: la key compartida vieja se reemplaza por la dedicada de SAN1.
+  // Cualquier dispositivo que tenga guardada la vieja (o ninguna) pasa a la nueva sola.
+  const _OLD_SHARED_KEY='mAHK3w.EMtYaw:x54CigmIIIkDtpupGgJ_uMljUPPPveLPbxOezyjDf3c';
+  const _NEW_DEDICATED_KEY='Ak-oLg.7hLsgw:pH-II-S3jIVPDrd98aF8MStCf4YN4Up6L3Dq9bhSWzw';
+  let _storedKey=localStorage.getItem('san1_ably_key');
+  if(!_storedKey||_storedKey===_OLD_SHARED_KEY){
+    _storedKey=_NEW_DEDICATED_KEY;
+    try{localStorage.setItem('san1_ably_key',_storedKey);}catch(e){}
+  }
+  const k=_storedKey;const ch=localStorage.getItem('san1_channel')||'san1-patio';
   S.ablyKey=k;S.channelName=ch;document.getElementById('ablyKeyInput').value=k;document.getElementById('channelInput').value=ch;
   if(k)setupAbly(k,ch);
   setInterval(tickTimers,1000);

@@ -3144,10 +3144,13 @@ function toggleBayActive(n){
 // ── end Bay Manager ───────────────────────────────────────────────────────────
 
 // ── Ably connection optimization ─────────────────────────────────────────────
-// Retry loop: keeps trying to (re)connect + request fresh state every 2s until
-// confirmed connected AND state received, up to ~20s. Used on focus/visibility/online.
+// Retry loop with jitter — avoids many devices hammering Ably in perfect sync
+// (a "reconnect storm") which can look like a global outage if the account is
+// near a connection/rate limit. Backs off progressively instead of fixed 2s.
 function _fastResync(){
   if(!S.ably)return;
+  if(S._fastResyncRunning)return; // no apilar loops si ya hay uno corriendo
+  S._fastResyncRunning=true;
   let _tries=0;
   const _step=()=>{
     _tries++;
@@ -3156,13 +3159,18 @@ function _fastResync(){
       if(st==='closed'||st==='suspended'||st==='failed'||st==='initialized'||st==='disconnected'){
         S.ably.connection.connect();
       }
-      if(S.ablyChannel)S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});
+      if(st==='connected'&&S.ablyChannel)S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});
     }catch(e){}
-    if(_tries<10&&S.ably.connection.state!=='connected'){setTimeout(_step,2000);}
+    if(_tries<6&&S.ably.connection.state!=='connected'){
+      const _jitter=Math.random()*1500;
+      setTimeout(_step,3000+_tries*1000+_jitter); // backoff creciente + jitter aleatorio
+    } else {
+      S._fastResyncRunning=false;
+    }
   };
   _step();
 }
-// 1. Page Visibility API — reconnect + resync fast when tab becomes visible again
+// 1. Page Visibility API — reconnect + resync cuando la pestaña vuelve a estar visible
 document.addEventListener('visibilitychange',()=>{
   if(!S.ably)return;
   if(document.visibilityState==='hidden'){
@@ -3175,15 +3183,14 @@ document.addEventListener('visibilitychange',()=>{
 window.addEventListener('online',()=>{_fastResync();});
 // 3. pageshow — cubre el caso de Safari/iOS restaurando la pestaña desde memoria (bfcache)
 window.addEventListener('pageshow',()=>{_fastResync();});
-// Verificación periódica cada 10s: si Ably cayó, reconectar y pedir estado (antes era cada 45s)
+// Verificación periódica cada 20s (con jitter): si Ably cayó, reconectar
 setInterval(()=>{
   if(!S.ably)return;
   const _st=S.ably.connection.state;
   if(_st==='disconnected'||_st==='suspended'||_st==='failed'){
-    try{S.ably.connection.connect();}catch(e){}
-    try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}
+    setTimeout(()=>{try{S.ably.connection.connect();}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}},Math.random()*3000);
   }
-},10000);
+},20000);
 
 // 2. Inactivity timer — disconnect after 10 min idle, show reconnect overlay
 let _inactTimer=null;

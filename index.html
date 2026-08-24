@@ -2672,14 +2672,17 @@ function parseCSV(text){
     count++;
   }
   if(count===0){toast('CSV no contiene registros válidos — no se modificó nada','danger');return;}
-  // Apply: NEVER touch a bay that already has operational progress (occupied, prein,
-  // or currentIdx>0 = ya tuvo salidas). This makes re-loading/updating the CSV mid-turno safe.
+  // Apply: NEVER touch a bay with a truck THERE RIGHT NOW (occupied/prein).
+  // A bay that's just 'waiting'/'empty' with leftover currentIdx>0 (previous cycle
+  // already finished, nobody physically there) is safe — and MUST be refreshed,
+  // otherwise loading a new cycle's CSV (e.g. PM1 after AM2) would keep stale
+  // assignments from the earlier cycle forever.
   let assigned=0,preserved=0;
-  const _hadAnyProgress=ALL_BAYS.some(n=>{const b=S.bays[n];return b.status==='occupied'||b.status==='prein'||b.currentIdx>0;});
+  const _hadAnyProgress=ALL_BAYS.some(n=>{const b=S.bays[n];return b.status==='occupied'||b.status==='prein';});
   ALL_BAYS.forEach(n=>{
     const b=S.bays[n];
     if(b.status==='blocked')return;
-    const hasProgress=b.status==='occupied'||b.status==='prein'||b.currentIdx>0;
+    const hasProgress=b.status==='occupied'||b.status==='prein';
     const newRows=parsedByBay[n];
     if(hasProgress){
       // Bay ya tiene actividad — no se toca, sin importar si el CSV trae filas para este muelle
@@ -2978,10 +2981,12 @@ ALL_BAYS.forEach(n=>{const r=data[n];if(!r)return;const b=S.bays[n];
     }
   }
   // Anti-wipe guard: never let ANY remote message (incl. CSV_LOAD/force) erase a bay
-  // that already has real operational progress (occupied/prein, or advanced currentIdx)
-  // when the incoming record looks like a reset (currentIdx back to 0 and lower/no status).
-  // This is a second line of defense in case a future CSV load or force-push regresses.
-  const _localHasProgress=b.status==='occupied'||b.status==='prein'||b.currentIdx>0;
+  // that has a truck THERE RIGHT NOW (occupied/prein) when the incoming record looks
+  // like a reset. Deliberately does NOT include currentIdx>0 alone — a bay that's
+  // just 'waiting'/'empty' with leftover history from a FINISHED earlier cycle must
+  // still be refreshable by a new cycle's CSV (e.g. PM1 replacing AM2), otherwise
+  // devices get stuck showing the previous cycle's assignments forever.
+  const _localHasProgress=b.status==='occupied'||b.status==='prein';
   const _remoteLooksReset=(r.currentIdx||0)===0&&(r.status==='waiting'||r.status==='empty');
   if(_localHasProgress&&_remoteLooksReset&&(r.currentIdx||0)<b.currentIdx){
     refreshBayEl(n);return;

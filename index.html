@@ -1251,8 +1251,14 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
   </div>
 </div>
 <div class="toast-wrap" id="toastWrap"></div>
+<div id="newVersionBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#DC2626;color:#fff;padding:10px 16px;text-align:center;font-weight:700;font-size:.9rem;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)" onclick="_reloadToLatest()">
+  ⚠️ Hay una versión nueva de la app — toca aquí para actualizar y sincronizar correctamente
+</div>
 <script>
 'use strict';
+// Marca de versión del build — se actualiza en cada deploy. Usada por el detector
+// de versión nueva más abajo para avisar a dispositivos que quedaron en caché vieja.
+const _BUILD_VERSION='20260821-stab1';
 const LEFT_BAYS=Array.from({length:31},(_,i)=>45+i);
 const RIGHT_BAYS=Array.from({length:26},(_,i)=>44-i);
 const BOTTOM_BAYS=[76,77,78,79,80];
@@ -1479,22 +1485,46 @@ function showDriverScreen(plate){
   S._driverHourInterval=setInterval(checkDriverHours,60000);
   refreshDriverScreen(plate);
   // Pedir estado al abrir pantalla (captura estado fresco desde el admin)
+  S._gotRemoteState=false;
+  try{S.ablyChannel&&S._ablyStateHandler&&S.ablyChannel.subscribe('STATE',S._ablyStateHandler);}catch(e){}
   setTimeout(()=>{try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}},600);
   setTimeout(()=>{try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}},3000);
-  // OPTIMIZACIÓN DE BANDWIDTH: después de recibir el estado inicial, el conductor
-  // se desuscribe de STATE. Con 127 conductores, cada STATE del operador se multiplicaría
-  // x127 en outbound. El conductor solo necesita DRIVER_CALL para saber cuándo entrar.
-  setTimeout(()=>{
+  // OPTIMIZACIÓN DE BANDWIDTH: con muchos conductores conectados, cada STATE del
+  // operador se multiplicaría x(num. conductores) en outbound si todos quedaran
+  // suscritos permanentemente. Por eso el conductor se desuscribe de STATE una vez
+  // recibido un estado fresco real — NUNCA por un timeout ciego, para no quedar
+  // congelado mostrando datos de un día anterior si la primera carga fue lenta.
+  let _unsubTries=0;
+  const _tryUnsub=()=>{
+    _unsubTries++;
     if(!S.driverPlate)return;
-    try{S.ablyChannel&&S.ablyChannel.unsubscribe('STATE');}catch(e){}
-  },5000);
-  // Page Visibility: cuando el conductor vuelve a la pestaña, pide estado fresco (sin polling continuo)
+    if(S._gotRemoteState){
+      try{S.ablyChannel&&S.ablyChannel.unsubscribe('STATE');}catch(e){}
+      return;
+    }
+    if(_unsubTries<20){ // sigue intentando hasta ~20s; si nunca llega, se queda suscrito (más seguro que congelarse)
+      try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}
+      setTimeout(_tryUnsub,1000);
+    }
+  };
+  setTimeout(_tryUnsub,5000);
+  // Page Visibility: cuando el conductor vuelve a la pestaña, se re-suscribe a STATE,
+  // pide estado fresco, y se vuelve a desuscribir unos segundos después de aplicarlo.
   if(S._driverVisibilityHandler)document.removeEventListener('visibilitychange',S._driverVisibilityHandler);
   S._driverVisibilityHandler=()=>{
     if(document.visibilityState!=='visible'||!S.driverPlate)return;
-    // Pedir estado puntual al volver a la pestaña (sin suscripción permanente)
+    S._gotRemoteState=false;
+    try{S.ablyChannel&&S._ablyStateHandler&&S.ablyChannel.subscribe('STATE',S._ablyStateHandler);}catch(e){}
     try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}
     refreshDriverScreen(S.driverPlate);
+    let _t2=0;
+    const _tryUnsub2=()=>{
+      _t2++;
+      if(!S.driverPlate)return;
+      if(S._gotRemoteState){try{S.ablyChannel&&S.ablyChannel.unsubscribe('STATE');}catch(e){}return;}
+      if(_t2<8){try{S.ablyChannel&&S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}setTimeout(_tryUnsub2,1000);}
+    };
+    setTimeout(_tryUnsub2,2000);
   };
   document.addEventListener('visibilitychange',S._driverVisibilityHandler);
 }
@@ -1698,26 +1728,30 @@ function clearPendingFilters(){
 
 function renderPendingQueue(){
   const rows=[],preinRows=[];
+  // IMPORTANTE: un vehículo con preingreso (en patio, aún no en muelle cargando) debe
+  // seguir apareciendo en "Pendientes por cargar" — solo sale de ahí cuando pasa a
+  // 'occupied' (empieza a cargar). Antes se movía exclusivamente a "En Patio" y
+  // desaparecía de Pendientes, lo cual generaba confusión operativa. Ahora aparece
+  // en AMBOS listados mientras no haya iniciado carga.
   ALL_BAYS.forEach(n=>{
     const b=S.bays[n];
     if(b.status==='empty'||b.status==='blocked')return;
-    // prein: currentIdx vehicle is in the yard → goes to En Patio section, rest to pending
-    // waiting: currentIdx hasn't arrived → pending from currentIdx
-    // occupied: currentIdx is loading → pending from currentIdx+1
     if(b.status==='prein'){
       const cur=b.queue[b.currentIdx];
-      if(cur)preinRows.push({bayNum:n,v:cur});
+      if(cur){preinRows.push({bayNum:n,v:cur});rows.push({bayNum:n,posLabel:'En patio',v:cur});}
       for(let i=b.currentIdx+1;i<b.queue.length;i++){
         const v=b.queue[i];
-        if(v.prein){preinRows.push({bayNum:n,v});}
-        else{const posLabel=(i-b.currentIdx)+'° en cola';rows.push({bayNum:n,posLabel,v});}
+        const posLabel=(i-b.currentIdx)+'° en cola';
+        if(v.prein)preinRows.push({bayNum:n,v});
+        rows.push({bayNum:n,posLabel:v.prein?posLabel+' (en patio)':posLabel,v});
       }
     } else {
       const startIdx=b.status==='waiting'?b.currentIdx:b.currentIdx+1;
       for(let i=startIdx;i<b.queue.length;i++){
         const v=b.queue[i];
-        if(i!==b.currentIdx&&v.prein){preinRows.push({bayNum:n,v});}
-        else{const posLabel=i===b.currentIdx?'Próximo':(i-b.currentIdx)+'° en cola';rows.push({bayNum:n,posLabel,v});}
+        const posLabel=i===b.currentIdx?'Próximo':(i-b.currentIdx)+'° en cola';
+        if(i!==b.currentIdx&&v.prein)preinRows.push({bayNum:n,v});
+        rows.push({bayNum:n,posLabel:(i!==b.currentIdx&&v.prein)?posLabel+' (en patio)':posLabel,v});
       }
     }
   });
@@ -2028,7 +2062,7 @@ function renderScannerQueue(){
   ALL_BAYS.forEach(n=>{
     const b=S.bays[n];
     if(b.status==='waiting'){const v=b.queue[b.currentIdx];if(v)rows.push({ola:v.ola||0,bay:n,plate:v.patente||'-',route:v.ruta||'-',tipoRuta:v.tipoRuta||'',company:v.transportadora||'-'});}
-    else if(b.status==='prein'){const v=b.queue[b.currentIdx];if(v)preinRows.push({ola:v.ola||0,bay:n,plate:v.patente||'-',route:v.ruta||'-',tipoRuta:v.tipoRuta||'',company:v.transportadora||'-'});}
+    else if(b.status==='prein'){const v=b.queue[b.currentIdx];if(v){const _row={ola:v.ola||0,bay:n,plate:v.patente||'-',route:v.ruta||'-',tipoRuta:v.tipoRuta||'',company:v.transportadora||'-'};preinRows.push(_row);rows.push(_row);}}
     // Vehículos de cola con flag prein (de cualquier ola, cualquier estado del muelle)
     for(let i=b.currentIdx+1;i<b.queue.length;i++){
       const v=b.queue[i];
@@ -2913,7 +2947,7 @@ try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=par
 
 /* REAL-TIME */
 function setupBC(){try{S.bc=new BroadcastChannel('san1-v3');S.bc.onmessage=e=>{if(S.isBroadcasting)return;const t=e.data.type,d=e.data.data;if(t==='STATE')applyRemote(d);else if(t==='CSV_LOAD'){S.isStateOwner=false;applyRemote(d,true);}else if(t==='USERS_SYNC'){const _lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(d&&d.users&&d.ts>_lt){AUTH.saveUsers(d.users);}else if(d&&Array.isArray(d))AUTH.saveUsers(d);}else if(t==='REASSIGN_NOTIF')showReassignNotif(d);else if(t==='PLATE_CHANGE')applyPlateChange(d);else if(t==='WAVE_DISPATCH')handleWaveDispatch(d);else if(t==='DRIVER_CALL')handleDriverCall(d);else if(t==='TMEC_ANNOUNCE'){speakUrgentExit(d.bayNum,d.plate,d.transportadora,true);}else if(t==='REQUEST_STATE'){if(S.isStateOwner){broadcastState(true);AUTH.syncUsers();}}};}catch(e){}}
-function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.channelName;S.ably=new Ably.Realtime({key,recover:(_,cb)=>cb(true)});S.ablyChannel=S.ably.channels.get(ch);
+function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.channelName;S.ably=new Ably.Realtime({key,recover:(_,cb)=>cb(true),echoMessages:false});S.ablyChannel=S.ably.channels.get(ch);
   // Canal drivers — solo DRIVER_CALL (conductores no se suscriben al canal de estado)
   S.ablyDriverChannel=S.ably.channels.get(ch+'-drivers');
   S._ablyStateHandler=msg=>{if(!S.isBroadcasting)applyRemote(msg.data);};
@@ -3317,6 +3351,33 @@ function exportHistoricoCSV(allDays){
   toast('Exportado: '+rows.length+' registros','success');
 }
 // ── end Histórico 8 días ──────────────────────────────────────────────────────
+
+// ── Detector de versión nueva ─────────────────────────────────────────────────
+// El navegador (sobre todo en tablets/celulares) puede quedarse con una copia
+// vieja en caché aunque el meta tag diga "no-cache" — Chrome/Safari móvil no lo
+// respetan de forma confiable para el documento principal. Esto ya causó que
+// algunos dispositivos se quedaran ejecutando código viejo con bugs ya corregidos.
+// Este chequeo compara la versión que corre localmente contra la publicada, y
+// avisa con un banner (no recarga solo, para no interrumpir un escaneo en curso).
+function _checkForNewVersion(){
+  fetch(location.pathname+'?_vcheck='+Date.now(),{cache:'no-store'})
+    .then(r=>r.text())
+    .then(html=>{
+      const m=html.match(/_BUILD_VERSION='([^']+)'/);
+      if(m&&m[1]&&m[1]!==_BUILD_VERSION){
+        const b=document.getElementById('newVersionBanner');
+        if(b)b.style.display='flex';
+      }
+    }).catch(()=>{});
+}
+function _reloadToLatest(){
+  const url=location.pathname+'?v='+Date.now();
+  location.href=url;
+}
+setTimeout(_checkForNewVersion,4000); // al abrir
+setInterval(_checkForNewVersion,5*60*1000); // cada 5 min
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')_checkForNewVersion();});
+// ── fin detector de versión ───────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded',init);
 </script>

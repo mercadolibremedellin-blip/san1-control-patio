@@ -11,6 +11,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>SAN1 Control de Patio</title>
 <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
+<!-- Firebase: respaldo automático de sincronización si Ably falla/se bloquea -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
@@ -1385,6 +1388,7 @@ async function init(){
   else if(session&&session.startsWith('driver:')){document.getElementById('loginOverlay').style.display='none';S.driverPlate=session.split(':')[1];S.driverDoc=localStorage.getItem('san1_drvdoc')||null;showDriverScreen(S.driverPlate);}
   else{document.getElementById('loginOverlay').style.display='flex';}
   setupBC();
+  setTimeout(_setupFirebaseFallback,1500); // listo de antemano, no se espera a que Ably falle
   // Migración de key: la key compartida vieja se reemplaza por la dedicada de SAN1.
   // Cualquier dispositivo que tenga guardada la vieja (o ninguna) pasa a la nueva sola.
   const _OLD_SHARED_KEY='mAHK3w.EMtYaw:x54CigmIIIkDtpupGgJ_uMljUPPPveLPbxOezyjDf3c';
@@ -2950,32 +2954,78 @@ try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=par
 
 /* REAL-TIME */
 function setupBC(){try{S.bc=new BroadcastChannel('san1-v3');S.bc.onmessage=e=>{if(S.isBroadcasting)return;const t=e.data.type,d=e.data.data;if(t==='STATE')applyRemote(d);else if(t==='CSV_LOAD'){S.isStateOwner=false;applyRemote(d,true);}else if(t==='USERS_SYNC'){const _lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(d&&d.users&&d.ts>_lt){AUTH.saveUsers(d.users);}else if(d&&Array.isArray(d))AUTH.saveUsers(d);}else if(t==='REASSIGN_NOTIF')showReassignNotif(d);else if(t==='PLATE_CHANGE')applyPlateChange(d);else if(t==='WAVE_DISPATCH')handleWaveDispatch(d);else if(t==='DRIVER_CALL')handleDriverCall(d);else if(t==='TMEC_ANNOUNCE'){speakUrgentExit(d.bayNum,d.plate,d.transportadora,true);}else if(t==='REQUEST_STATE'){if(S.isStateOwner){broadcastState(true);AUTH.syncUsers();}}};}catch(e){}}
-// Limitador de mensajes por dispositivo: protección de último recurso para que ningún
-// dispositivo (por un bug, una red inestable, o un loop inesperado) pueda por sí solo
-// agotar el límite de mensajes de la cuenta compartida de Ably. ~50 publicaciones/min
-// por dispositivo es generosísimo para el uso normal de la app (escaneos, despachos)
-// pero corta en seco cualquier comportamiento anómalo antes de que escale.
-function _wrapAblyChannelRateLimit(channel){
+// ── Firebase: respaldo automático si Ably falla/se bloquea ────────────────────
+// Misma idea que el circuit breaker: cuando Ably no está sano, en vez de dejar a
+// los dispositivos sin sincronizar entre sí, la app publica/escucha por Firebase
+// Realtime Database. Emula pub/sub efímero: cada publish agrega un nodo con
+// timestamp, y cada subscribe solo escucha nodos con ts >= "ahora" (no repite
+// historial viejo al conectarse) + limpieza periódica de nodos viejos.
+const _FB_CONFIG={apiKey:"AIzaSyC_fSjQaEFSFYpH526lv2oUYZBltbUGJbI",authDomain:"mercadolibre-2e602.firebaseapp.com",databaseURL:"https://mercadolibre-2e602-default-rtdb.firebaseio.com",projectId:"mercadolibre-2e602"};
+function _setupFirebaseFallback(){
+  if(S.fbDb)return S.fbDb;
+  try{
+    if(typeof firebase==='undefined'){console.warn('SAN1: Firebase SDK no cargó');return null;}
+    if(!firebase.apps.length)firebase.initializeApp(_FB_CONFIG);
+    S.fbDb=firebase.database();
+    return S.fbDb;
+  }catch(e){console.warn('SAN1: Firebase init falló:',e);return null;}
+}
+function _fbPath(channelPath,event){return 'san1_sync/'+channelPath+'/'+event;}
+// Limitador de mensajes por dispositivo + enrutador dual (Ably sano -> Ably;
+// si no -> Firebase). Protección de último recurso para que ningún dispositivo
+// (por un bug, una red inestable, o un loop inesperado) pueda por sí solo agotar
+// el límite de mensajes de la cuenta compartida de Ably.
+function _wrapAblyChannelRateLimit(channel,channelPath){
   if(!channel||channel._san1RateLimited)return channel;
-  const _orig=channel.publish.bind(channel);
+  const _origPublish=channel.publish.bind(channel);
+  const _origSubscribe=channel.subscribe.bind(channel);
+  const _origUnsubscribe=channel.unsubscribe?channel.unsubscribe.bind(channel):null;
   let _times=[];
-  channel.publish=function(...args){
-    if(S._ablyBlocked)return;
+  const _fbRefs={},_fbHandlers={};
+  channel.publish=function(event,data){
     const now=Date.now();
     _times=_times.filter(t=>now-t<60000);
-    if(_times.length>=20){ // bajado de 50 a 20: los STATE pesan ~12KB+ cada uno (Ably factura por bloques de 2KB)
-      console.warn('SAN1: límite local de mensajes/min alcanzado — mensaje omitido para proteger la cuenta Ably compartida');
+    if(_times.length>=20){ // los STATE pesan ~12KB+ cada uno (Ably factura por bloques de 2KB)
+      console.warn('SAN1: límite local de mensajes/min alcanzado — mensaje omitido para proteger la cuenta compartida');
       return;
     }
     _times.push(now);
-    try{return _orig(...args);}catch(e){}
+    const _ablyHealthy=S.ably&&S.ably.connection.state==='connected'&&!S._ablyBlocked;
+    if(_ablyHealthy){
+      try{return _origPublish(event,data);}catch(e){}
+      return;
+    }
+    // Fallback a Firebase
+    const db=_setupFirebaseFallback();if(!db)return;
+    try{
+      const ref=db.ref(_fbPath(channelPath,event));
+      ref.push({data:JSON.stringify(data),ts:Date.now()});
+      const _cutoff=Date.now()-10*60*1000;
+      ref.orderByChild('ts').endAt(_cutoff).once('value',snap=>{snap.forEach(child=>{try{child.ref.remove();}catch(e){}});});
+    }catch(e){console.warn('SAN1: Firebase publish falló:',e);}
   };
+  channel.subscribe=function(event,handler){
+    try{_origSubscribe(event,handler);}catch(e){}
+    const db=_setupFirebaseFallback();if(!db)return;
+    try{
+      const ref=db.ref(_fbPath(channelPath,event)).orderByChild('ts').startAt(Date.now());
+      const fbHandler=snap=>{const v=snap.val();if(!v||!v.data)return;try{handler({data:JSON.parse(v.data)});}catch(e){}};
+      ref.on('child_added',fbHandler);
+      _fbRefs[event]=ref;_fbHandlers[event]=fbHandler;
+    }catch(e){console.warn('SAN1: Firebase subscribe falló:',e);}
+  };
+  if(_origUnsubscribe){
+    channel.unsubscribe=function(event){
+      try{_origUnsubscribe(event);}catch(e){}
+      if(_fbRefs[event]&&_fbHandlers[event]){try{_fbRefs[event].off('child_added',_fbHandlers[event]);}catch(e){}delete _fbRefs[event];delete _fbHandlers[event];}
+    };
+  }
   channel._san1RateLimited=true;
   return channel;
 }
-function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.channelName;S.ably=new Ably.Realtime({key,recover:(_,cb)=>cb(true),echoMessages:false});S.ablyChannel=_wrapAblyChannelRateLimit(S.ably.channels.get(ch));
+function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.channelName;S.ably=new Ably.Realtime({key,recover:(_,cb)=>cb(true),echoMessages:false});S.ablyChannel=_wrapAblyChannelRateLimit(S.ably.channels.get(ch),ch);
   // Canal drivers — solo DRIVER_CALL (conductores no se suscriben al canal de estado)
-  S.ablyDriverChannel=_wrapAblyChannelRateLimit(S.ably.channels.get(ch+'-drivers'));
+  S.ablyDriverChannel=_wrapAblyChannelRateLimit(S.ably.channels.get(ch+'-drivers'),ch+'-drivers');
   S._ablyStateHandler=msg=>{if(!S.isBroadcasting)applyRemote(msg.data);};
   S.ablyChannel.subscribe('STATE',S._ablyStateHandler);
   S.ablyChannel.subscribe('REASSIGN_NOTIF',msg=>showReassignNotif(msg.data));

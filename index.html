@@ -2963,7 +2963,7 @@ function _wrapAblyChannelRateLimit(channel){
     if(S._ablyBlocked)return;
     const now=Date.now();
     _times=_times.filter(t=>now-t<60000);
-    if(_times.length>=50){
+    if(_times.length>=20){ // bajado de 50 a 20: los STATE pesan ~12KB+ cada uno (Ably factura por bloques de 2KB)
       console.warn('SAN1: límite local de mensajes/min alcanzado — mensaje omitido para proteger la cuenta Ably compartida');
       return;
     }
@@ -2985,7 +2985,7 @@ function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.
   S.ablyChannel.subscribe('TMEC_ANNOUNCE',msg=>{const _d=msg.data||{};speakUrgentExit(_d.bayNum,_d.plate,_d.transportadora,true);});
   S.ablyChannel.subscribe('CSV_LOAD',msg=>{if(S.isBroadcasting)return;S.isStateOwner=false;applyRemote(msg.data,true);});
   S.ablyChannel.subscribe('USERS_SYNC',msg=>{const _d=msg.data,_lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(_d&&_d.users&&_d.ts>_lt){AUTH.saveUsers(_d.users);}else if(_d&&Array.isArray(_d))AUTH.saveUsers(_d);});
-  S.ablyChannel.subscribe('REQUEST_STATE',msg=>{if(S.isStateOwner){const _now=Date.now();if(!S._lastReqStateResp||_now-S._lastReqStateResp>5000){S._lastReqStateResp=_now;broadcastState(true);AUTH.syncUsers();}}});
+  S.ablyChannel.subscribe('REQUEST_STATE',msg=>{if(S.isStateOwner){const _now=Date.now();if(!S._lastReqStateResp||_now-S._lastReqStateResp>8000){S._lastReqStateResp=_now;broadcastState(true);AUTH.syncUsers();}}});
   S.ablyChannel.subscribe('FORCE_CLEAR',msg=>{const _d=msg.data||{};const _ts=_d.ts||Date.now();try{localStorage.setItem('san1_clear_ts',String(_ts));}catch(e){}ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];S.stateGen=_ts||Date.now();renderLayout();renderActivityFeed();saveLocal();toast('Patio limpiado remotamente','info');});
   S.ablyChannel.subscribe('REQUEST_USERS',msg=>{const _myTs=parseInt(localStorage.getItem('san1_users_ts')||'0');const _reqTs=msg.data&&msg.data.ts?msg.data.ts:0;if(AUTH.getUsers().length>1&&_myTs>=_reqTs)AUTH.syncUsers();});S.ably.connection.on('connected',()=>{document.getElementById('connDot').className='conn-dot ok';document.getElementById('connText').textContent='Sync activo';if(S._ablyReconnectTimer){clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=null;}S._reconnectAttempts=0;toast('Sync activo','success');setTimeout(()=>{try{S.ablyChannel.publish('REQUEST_USERS',{ts:parseInt(localStorage.getItem('san1_users_ts')||'0')});}catch(e){}},1200);let _rsr=0;const _rs=()=>{if(S._gotRemoteState||_rsr>8){if(!S._gotRemoteState&&!S.isStateOwner)S.isStateOwner=true;return;}_rsr++;try{S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}setTimeout(_rs,3000);};setTimeout(_rs,800);});S.ably.connection.on('disconnected',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Reconectando...';});S.ably.connection.on('suspended',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Sin señal - reintentando...';});S.ably.connection.on('failed',(stateChange)=>{
   // CIRCUIT BREAKER: si la cuenta de Ably está bloqueada (límite de mensajes excedido,
@@ -3013,14 +3013,20 @@ function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.
   if(S._ablyReconnectTimer)clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=setTimeout(()=>{if(S._ablyBlocked)return;toast('Intentando reconectar...','warning');manualReconnect();},_delay);});}catch(e){console.warn('Ably:',e);}}
 let _bsTimer=null;
 function broadcastState(immediate){
-  // Debounce: agrupa llamadas seguidas en una sola — reduce hasta 80% el tráfico Ably
+  // Debounce: agrupa llamadas seguidas en una sola — reduce tráfico Ably.
+  // 4s (antes 2s) para bajar el volumen de mensajes en días de mucho movimiento.
   if(immediate){_doBroadcastState();return;}
   if(_bsTimer)clearTimeout(_bsTimer);
-  _bsTimer=setTimeout(_doBroadcastState,2000);
+  _bsTimer=setTimeout(_doBroadcastState,4000);
 }
 function _doBroadcastState(){
   _bsTimer=null;
-  const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null};});p.__gen=S.stateGen;p.__ts=S._stateTs||0;p.__call=S.pendingDriverCall||null;p.__dispatchOla=S.dispatchedOla||0;p.__hist=S.history.slice(-150);S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'STATE',data:p});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('STATE',p);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);document.getElementById('lastSync').textContent='Sync: '+new Date().toLocaleTimeString();
+  // NOTA DE COSTO: Ably factura en bloques de 2KB — un STATE completo con historial
+  // grande puede pesar ~50KB (≈25 "mensajes" reales por cada envío). Por eso el
+  // broadcast rutinario (el que se dispara en cada escaneo) manda solo un historial
+  // reciente pequeño; el historial completo se sincroniza vía CSV_LOAD/Sync manual
+  // (mucho menos frecuentes) y por acumulación incremental entre broadcasts.
+  const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null};});p.__gen=S.stateGen;p.__ts=S._stateTs||0;p.__call=S.pendingDriverCall||null;p.__dispatchOla=S.dispatchedOla||0;p.__hist=S.history.slice(-10);S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'STATE',data:p});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('STATE',p);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);document.getElementById('lastSync').textContent='Sync: '+new Date().toLocaleTimeString();
 }
 function manualReconnect(){
   if(!S._reconnectAttempts)S._reconnectAttempts=0;

@@ -1264,7 +1264,7 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
 'use strict';
 // Marca de versión del build — se actualiza en cada deploy. Usada por el detector
 // de versión nueva más abajo para avisar a dispositivos que quedaron en caché vieja.
-const _BUILD_VERSION='20260821-stab1';
+const _BUILD_VERSION='20260901-stab2';
 const LEFT_BAYS=Array.from({length:31},(_,i)=>45+i);
 const RIGHT_BAYS=Array.from({length:26},(_,i)=>44-i);
 const BOTTOM_BAYS=[76,77,78,79,80];
@@ -1301,7 +1301,7 @@ const WAVE_BG={0:'#4B5563',1:'#6B7280',2:'#1D4ED8',3:'#D97706',4:'#7C3AED',5:'#B
 /* AUTH */
 const AUTH={
   current:null,UK:'san1_users_v2',SK:'san1_session_v2',DSK:'san1_driver_session',
-  getUsers(){const _bl=['Distransa1','Minutos99'];return JSON.parse(localStorage.getItem(this.UK)||'[]').filter(u=>!_bl.includes(u.username));},
+  getUsers(){const _bl=['Distransa1','Minutos99'];let _list;try{_list=JSON.parse(localStorage.getItem(this.UK)||'[]');if(!Array.isArray(_list))_list=[];}catch(e){_list=[];try{localStorage.removeItem(this.UK);}catch(e2){}}return _list.filter(u=>!_bl.includes(u.username));},
   saveUsers(u){const _bl=['Distransa1','Minutos99'];u=(u||[]).filter(x=>!_bl.includes(x.username));localStorage.setItem(this.UK,JSON.stringify(u));localStorage.setItem('san1_users_ts',String(Date.now()));},
   syncUsers(){const _u=this.getUsers();if(!_u||_u.length===0)return;const _ts=parseInt(localStorage.getItem('san1_users_ts')||'0')||Date.now();localStorage.setItem('san1_users_ts',String(_ts));const _p={users:_u,ts:_ts};try{S.bc&&S.bc.postMessage({type:'USERS_SYNC',data:_p});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('USERS_SYNC',_p);}catch(e){}},
   hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h)^s.charCodeAt(i);return(h>>>0).toString(16);},
@@ -1353,6 +1353,24 @@ const AUTH={
 
 const S={bays:{},history:[],activityLog:[],selectedBay:null,configMode:false,pendingReassign:null,changePlateTarget:null,ably:null,ablyChannel:null,ablyDriverChannel:null,bc:null,ablyKey:'',channelName:'san1-patio',isBroadcasting:false,driverPlate:null,driverRefreshInterval:null,scanMode:'in',actPanelOpen:true,scannerOpen:false,isStateOwner:false,stateReady:false,stateGen:0,dispatchedOla:0,_gotRemoteState:false};
 
+// ── Red de seguridad global: captura cualquier error o promesa rechazada sin
+// manejar para que quede visible (consola + aviso breve) en vez de dejar la
+// app en un estado roto en silencio. No reemplaza corregir la causa real,
+// pero evita que un error aislado (ej. un dato inesperado en un solo muelle)
+// tumbe funciones que no tienen relación con lo que falló.
+let _lastGlobalErrMsg='',_lastGlobalErrTs=0;
+function _reportGlobalError(msg,src){
+  try{
+    const now=Date.now();
+    if(msg===_lastGlobalErrMsg&&now-_lastGlobalErrTs<10000)return; // evita spam si se repite en loop
+    _lastGlobalErrMsg=msg;_lastGlobalErrTs=now;
+    console.error('SAN1 ['+src+']:',msg);
+    if(typeof toast==='function'){try{toast('⚠️ Error interno detectado ('+src+') — registrado, la app sigue funcionando','warning',6000);}catch(e){}}
+  }catch(e){}
+}
+window.addEventListener('error',function(ev){_reportGlobalError((ev&&ev.message)||'error desconocido','JS');});
+window.addEventListener('unhandledrejection',function(ev){const r=ev&&ev.reason;_reportGlobalError((r&&r.message)||String(r)||'promesa rechazada','Promise');});
+
 /* AUDIO */
 let _ac;
 function ac(){if(!_ac)_ac=new(window.AudioContext||window.webkitAudioContext)();return _ac;}
@@ -1368,39 +1386,62 @@ function genQR(plate,containerId){
 }
 
 /* INIT */
+// NOTA DE ESTABILIDAD: cada fase va en su propio try/catch. Si una fase falla
+// (p.ej. localStorage corrupto en un dispositivo puntual), las fases siguientes
+// —y en particular el setup de Ably/Firebase/reloj— deben seguir corriendo
+// igual. Antes, un error sin capturar en cualquier punto de init() dejaba a
+// ESE dispositivo completamente sin sync ni reloj, sin ningún aviso.
 async function init(){
   // Load active bays (default 18-76)
-  try{const _ab=localStorage.getItem('san1_active_bays');ALL_BAYS=_ab?JSON.parse(_ab):Array.from({length:44},(_,i)=>16+i);}catch(e){ALL_BAYS=Array.from({length:44},(_,i)=>16+i);}loadTransportadoras();
+  try{const _ab=localStorage.getItem('san1_active_bays');ALL_BAYS=_ab?JSON.parse(_ab):Array.from({length:44},(_,i)=>16+i);}catch(e){ALL_BAYS=Array.from({length:44},(_,i)=>16+i);}
+  try{loadTransportadoras();}catch(e){console.warn('SAN1: loadTransportadoras falló',e);}
   // Initialize all possible bays so any can be activated later
-  ALL_POSSIBLE_BAYS.forEach(n=>{S.bays[n]={number:n,status:'empty',queue:[],currentIdx:0,entryTime:null,elapsedSeconds:0};});
+  try{
+    ALL_POSSIBLE_BAYS.forEach(n=>{S.bays[n]={number:n,status:'empty',queue:[],currentIdx:0,entryTime:null,elapsedSeconds:0};});
+  }catch(e){console.warn('SAN1: inicialización de muelles falló',e);}
   // One-time forced clean for version bump — clears stale state from previous sessions
-  const _appVer='san1_20260819';
-  if(localStorage.getItem('san1_app_ver')!==_appVer){
-    localStorage.setItem('san1_app_ver',_appVer);
-    try{localStorage.removeItem('san1_bays');localStorage.removeItem('san1_hist');localStorage.removeItem('san1_gen');localStorage.removeItem('san1_state_ts');localStorage.removeItem('san1_dispatch_ola');localStorage.removeItem('san1_alerted_bays');}catch(e){}
-    ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});
-    S.history=[];S.dispatchedOla=0;S.stateGen=0;S.stateReady=false;S.isStateOwner=false;
-  } else {
-    loadLocalState();
+  try{
+    const _appVer='san1_20260819';
+    if(localStorage.getItem('san1_app_ver')!==_appVer){
+      localStorage.setItem('san1_app_ver',_appVer);
+      try{localStorage.removeItem('san1_bays');localStorage.removeItem('san1_hist');localStorage.removeItem('san1_gen');localStorage.removeItem('san1_state_ts');localStorage.removeItem('san1_dispatch_ola');localStorage.removeItem('san1_alerted_bays');}catch(e){}
+      ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});
+      S.history=[];S.dispatchedOla=0;S.stateGen=0;S.stateReady=false;S.isStateOwner=false;
+    } else {
+      loadLocalState();
+    }
+  }catch(e){console.warn('SAN1: carga de estado local falló, continuando con patio vacío',e);}
+  // AUTH/sesión — si falla, se muestra login; no debe bloquear el setup de sync de abajo
+  try{
+    const session=await AUTH.init();
+    if(session==='staff'){document.getElementById('loginOverlay').style.display='none';showApp();}
+    else if(session&&session.startsWith('driver:')){document.getElementById('loginOverlay').style.display='none';S.driverPlate=session.split(':')[1];S.driverDoc=localStorage.getItem('san1_drvdoc')||null;showDriverScreen(S.driverPlate);}
+    else{document.getElementById('loginOverlay').style.display='flex';}
+  }catch(e){
+    console.warn('SAN1: AUTH.init falló, mostrando pantalla de login',e);
+    try{document.getElementById('loginOverlay').style.display='flex';}catch(e2){}
   }
-  const session=await AUTH.init();
-  if(session==='staff'){document.getElementById('loginOverlay').style.display='none';showApp();}
-  else if(session&&session.startsWith('driver:')){document.getElementById('loginOverlay').style.display='none';S.driverPlate=session.split(':')[1];S.driverDoc=localStorage.getItem('san1_drvdoc')||null;showDriverScreen(S.driverPlate);}
-  else{document.getElementById('loginOverlay').style.display='flex';}
-  setupBC();
-  setTimeout(_setupFirebaseFallback,1500); // listo de antemano, no se espera a que Ably falle
-  // Migración de key: la key compartida vieja se reemplaza por la dedicada de SAN1.
-  // Cualquier dispositivo que tenga guardada la vieja (o ninguna) pasa a la nueva sola.
-  const _OLD_SHARED_KEY='mAHK3w.EMtYaw:x54CigmIIIkDtpupGgJ_uMljUPPPveLPbxOezyjDf3c';
-  const _NEW_DEDICATED_KEY='Ak-oLg.7hLsgw:pH-II-S3jIVPDrd98aF8MStCf4YN4Up6L3Dq9bhSWzw';
-  let _storedKey=localStorage.getItem('san1_ably_key');
-  if(!_storedKey||_storedKey===_OLD_SHARED_KEY){
-    _storedKey=_NEW_DEDICATED_KEY;
-    try{localStorage.setItem('san1_ably_key',_storedKey);}catch(e){}
-  }
-  const k=_storedKey;const ch=localStorage.getItem('san1_channel')||'san1-patio';
-  S.ablyKey=k;S.channelName=ch;document.getElementById('ablyKeyInput').value=k;document.getElementById('channelInput').value=ch;
-  if(k)setupAbly(k,ch);
+  // ── A partir de aquí: setup crítico de sincronización. SIEMPRE debe ejecutarse,
+  // incluso si alguna fase anterior falló, para que el dispositivo no quede sin
+  // reloj ni sincronización con los demás equipos. ──
+  try{setupBC();}catch(e){console.warn('SAN1: setupBC falló',e);}
+  try{setTimeout(_setupFirebaseFallback,1500);}catch(e){} // listo de antemano, no se espera a que Ably falle
+  try{
+    // Migración de key: la key compartida vieja se reemplaza por la dedicada de SAN1.
+    // Cualquier dispositivo que tenga guardada la vieja (o ninguna) pasa a la nueva sola.
+    const _OLD_SHARED_KEY='mAHK3w.EMtYaw:x54CigmIIIkDtpupGgJ_uMljUPPPveLPbxOezyjDf3c';
+    const _NEW_DEDICATED_KEY='Ak-oLg.7hLsgw:pH-II-S3jIVPDrd98aF8MStCf4YN4Up6L3Dq9bhSWzw';
+    let _storedKey=localStorage.getItem('san1_ably_key');
+    if(!_storedKey||_storedKey===_OLD_SHARED_KEY){
+      _storedKey=_NEW_DEDICATED_KEY;
+      try{localStorage.setItem('san1_ably_key',_storedKey);}catch(e){}
+    }
+    const k=_storedKey;const ch=localStorage.getItem('san1_channel')||'san1-patio';
+    S.ablyKey=k;S.channelName=ch;
+    const _aki=document.getElementById('ablyKeyInput');if(_aki)_aki.value=k;
+    const _chi=document.getElementById('channelInput');if(_chi)_chi.value=ch;
+    if(k)setupAbly(k,ch);
+  }catch(e){console.warn('SAN1: setup de Ably falló',e);}
   setInterval(tickTimers,1000);
   document.addEventListener('click',()=>{try{ac().resume();}catch(e){}try{if('speechSynthesis' in window){window.speechSynthesis.getVoices();const _u=new SpeechSynthesisUtterance('');_u.volume=0;window.speechSynthesis.speak(_u);}}catch(e){}},{once:true});
 }
@@ -2110,7 +2151,7 @@ function timerClass(sec,spr){
   if(sec>=limit*0.7)return 'btimer btimer-yellow';
   return 'btimer btimer-green';
 }
-const _alertedBays=new Set(JSON.parse(localStorage.getItem('san1_alerted_bays')||'[]'));
+let _alertedBays;try{_alertedBays=new Set(JSON.parse(localStorage.getItem('san1_alerted_bays')||'[]'));}catch(e){_alertedBays=new Set();try{localStorage.removeItem('san1_alerted_bays');}catch(e2){}}
 function speakUrgentExit(bayNum,plate,transportadora,_fromBroadcast){
   try{
     if(!('speechSynthesis' in window)){toast('TTS no soportado','danger');return;}
@@ -2971,6 +3012,13 @@ function _setupFirebaseFallback(){
   }catch(e){console.warn('SAN1: Firebase init falló:',e);return null;}
 }
 function _fbPath(channelPath,event){return 'san1_sync/'+channelPath+'/'+event;}
+// Registro global de listeners de Firebase por ruta+evento. setupAbly() se
+// vuelve a llamar en cada reconexión (manual, circuit breaker, etc.) y cada
+// vez envuelve un canal NUEVO — sin este registro, cada reconexión dejaba
+// pegado un listener de Firebase adicional sobre la MISMA ruta (nunca se
+// quitaba el anterior), y con el tiempo un mismo mensaje se procesaba varias
+// veces. Antes de registrar uno nuevo para una ruta+evento, se quita el viejo.
+const _fbListenerRegistry={};
 // Limitador de mensajes por dispositivo + enrutador dual (Ably sano -> Ably;
 // si no -> Firebase). Protección de último recurso para que ningún dispositivo
 // (por un bug, una red inestable, o un loop inesperado) pueda por sí solo agotar
@@ -3007,17 +3055,22 @@ function _wrapAblyChannelRateLimit(channel,channelPath){
   channel.subscribe=function(event,handler){
     try{_origSubscribe(event,handler);}catch(e){}
     const db=_setupFirebaseFallback();if(!db)return;
+    const _regKey=channelPath+'::'+event;
+    const _prev=_fbListenerRegistry[_regKey];
+    if(_prev){try{_prev.ref.off('child_added',_prev.handler);}catch(e){}delete _fbListenerRegistry[_regKey];}
     try{
       const ref=db.ref(_fbPath(channelPath,event)).orderByChild('ts').startAt(Date.now());
       const fbHandler=snap=>{const v=snap.val();if(!v||!v.data)return;try{handler({data:JSON.parse(v.data)});}catch(e){}};
       ref.on('child_added',fbHandler);
       _fbRefs[event]=ref;_fbHandlers[event]=fbHandler;
+      _fbListenerRegistry[_regKey]={ref,handler:fbHandler};
     }catch(e){console.warn('SAN1: Firebase subscribe falló:',e);}
   };
   if(_origUnsubscribe){
     channel.unsubscribe=function(event){
       try{_origUnsubscribe(event);}catch(e){}
       if(_fbRefs[event]&&_fbHandlers[event]){try{_fbRefs[event].off('child_added',_fbHandlers[event]);}catch(e){}delete _fbRefs[event];delete _fbHandlers[event];}
+      delete _fbListenerRegistry[channelPath+'::'+event];
     };
   }
   channel._san1RateLimited=true;
@@ -3392,7 +3445,7 @@ function archiveHistory(){
 function openHistoricoModal(){
   archiveHistory();
   const raw=localStorage.getItem('san1_hist_archive');
-  const archive=raw?JSON.parse(raw):[];
+  let archive;try{archive=raw?JSON.parse(raw):[];if(!Array.isArray(archive))archive=[];}catch(e){archive=[];}
   // Group by locale date string
   const byDate={};
   archive.forEach(h=>{
@@ -3441,7 +3494,7 @@ function renderHistoricoTable(rows){
 function exportHistoricoCSV(allDays){
   archiveHistory();
   const raw=localStorage.getItem('san1_hist_archive');
-  const archive=raw?JSON.parse(raw):[];
+  let archive;try{archive=raw?JSON.parse(raw):[];if(!Array.isArray(archive))archive=[];}catch(e){archive=[];}
   let rows;
   let filename;
   if(allDays){rows=archive;filename='historico_san1_8dias_'+new Date().toISOString().slice(0,10)+'.csv';}

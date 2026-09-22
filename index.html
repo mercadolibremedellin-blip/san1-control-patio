@@ -277,6 +277,9 @@ html,body{height:100%;background:var(--ml-light);color:#1F2937;
 /* Tipo ruta — texto coloreado, sin relleno sólido */
 .tr-critica{background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA}
 .tr-neutro {background:#F1F5F9;color:#475569}
+/* TIPOLOGÍA planeada vs asignada */
+.tipo-ok   {background:#F0FDF4;color:#15803D;border:1px solid #86EFAC}
+.tipo-alert{background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA}
 /* legacy aliases */
 .tr-hibrida{background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA}
 .tr-riesgo {background:#F1F5F9;color:#475569}
@@ -1004,7 +1007,7 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
       <table style="width:100%;border-collapse:collapse;font-size:.78rem" id="pendingQueueTable">
         <thead>
           <colgroup>
-            <col style="width:70px"><col style="width:55px"><col style="width:100px"><col style="width:14%"><col style="width:16%"><col style="width:14%"><col style="width:110px"><col style="width:70px">
+            <col style="width:70px"><col style="width:55px"><col style="width:100px"><col style="width:14%"><col style="width:16%"><col style="width:14%"><col style="width:110px"><col style="width:110px"><col style="width:70px">
           </colgroup>
           <tr style="color:#1E3A8A;font-weight:700;font-size:.7rem;background:#EFF6FF">
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Ola</th>
@@ -1014,6 +1017,7 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Zona</th>
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Empresa</th>
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Tipo</th>
+            <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Tipología</th>
             <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #E2E8F0;white-space:nowrap">Pos.</th>
           </tr>
           <tr id="pendingFilterRow" style="background:#F8FAFC">
@@ -1024,6 +1028,7 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-zona" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><input id="pf-emp" oninput="applyPendingFilters()" placeholder="Buscar..." style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 6px;box-sizing:border-box;color:#374151;background:#fff"></td>
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"><select id="pf-tipo" onchange="applyPendingFilters()" style="width:100%;font-size:.65rem;border:1px solid #E2E8F0;border-radius:6px;padding:3px 4px;background:#fff;color:#374151"><option value="">Todos</option><option>Riesgo</option><option>Lejana</option><option>Híbrida</option><option>Automovil</option><option>Small Van</option></select></td>
+            <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9"></td>
             <td style="padding:3px 6px;border-bottom:1px solid #F1F5F9;text-align:center"><button onclick="clearPendingFilters()" title="Limpiar filtros" style="font-size:.65rem;background:#FEE2E2;border:1px solid #FECACA;border-radius:6px;padding:2px 7px;cursor:pointer;color:#DC2626;font-weight:700">✕</button></td>
           </tr>
         </thead>
@@ -1830,6 +1835,7 @@ function renderPendingQueue(){
         '<td style="padding:3px 8px;color:#1E3A8A;font-size:.75rem">'+(v.zona||'-')+'</td>'+
         '<td style="padding:3px 8px;color:#374151;font-size:.72rem;font-weight:600">'+(v.transportadora||'-')+'</td>'+
         '<td style="padding:3px 8px">'+(v.tipoRuta?'<span class="'+trClass(v.tipoRuta)+'" style="padding:2px 6px;border-radius:4px;font-size:.65rem;font-weight:700">'+(v.tipoRuta.includes(' - ')?v.tipoRuta.split(' - ').pop():v.tipoRuta)+'</span>':'-')+'</td>'+
+        '<td style="padding:3px 8px">'+(()=>{const _tSt=typologyStatus(v.tipoPlaneada,v.tipoAsignada);if(!_tSt)return'-';return'<span class="'+(_tSt.ok?'tipo-ok':'tipo-alert')+'" title="Planeada: '+v.tipoPlaneada+'" style="padding:2px 6px;border-radius:4px;font-size:.65rem;font-weight:700">'+(_tSt.ok?'✓ ':'⚠ ')+(_tSt.label||'')+'</span>';})()+'</td>'+
         '<td style="padding:3px 8px;color:#374151;font-size:.72rem;font-weight:600">'+posLabel+'</td>';
       tbody.appendChild(tr);
     });
@@ -1876,6 +1882,7 @@ function refreshBayEl(n,el){
     if(cur.ruta)h+='<div class="br">'+cur.ruta+'</div>';
     if(cur.transportadora)h+='<div class="bc">'+cur.transportadora.substring(0,13)+'</div>';
     if(cur.tipoRuta)h+='<div style="font-size:.48rem;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:1px;display:inline-block;font-family:Inter,sans-serif;letter-spacing:.01em" class="'+trClass(cur.tipoRuta)+'">'+(cur.tipoRuta.includes(' - ')?cur.tipoRuta.split(' - ').pop():cur.tipoRuta).substring(0,12)+'</div>';
+    {const _tSt=typologyStatus(cur.tipoPlaneada,cur.tipoAsignada);if(_tSt)h+='<div title="Planeada: '+cur.tipoPlaneada+' — Asignada: '+(_tSt.assigned||'(sin dato)')+'" style="font-size:.48rem;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:1px;display:inline-block;font-family:Inter,sans-serif;letter-spacing:.01em" class="'+(_tSt.ok?'tipo-ok':'tipo-alert')+'">'+(_tSt.ok?'✓ ':'⚠ ')+(_tSt.label||'').substring(0,14)+'</div>';}
     if(cur.tmecOfensora)h+='<div style="font-size:.52rem;font-weight:800;padding:2px 5px;border-radius:3px;margin-top:1px;display:inline-block;background:#DC2626;color:#fff;letter-spacing:.03em;font-family:Inter,sans-serif">⚠️ TMEC</div>';
     if(bay.status==='occupied'){const _spr=cur?cur.spr||0:0;let tc=timerClass(bay.elapsedSeconds,_spr);h+='<div class="'+tc+'" id="t'+n+'">'+fmt(bay.elapsedSeconds)+'</div>';}
     if(bay.status==='prein'){h+='<div style="font-size:.62rem;font-weight:800;color:#6EE7B7;background:rgba(0,0,0,.3);border-radius:3px;padding:1px 3px;margin-top:2px">EN PATIO</div>';}
@@ -2216,6 +2223,7 @@ function openBayModal(n){
   if(cur){body+=mrow('Placa','<strong style="font-size:.98rem;letter-spacing:1px">'+(cur.patente||'-')+'</strong>');body+=mrow('Ruta',cur.ruta||'-');if(cur.zona)body+=mrow('Zona',cur.zona);body+=mrow('Empresa',cur.transportadora||'-');if(cur.vehicleType)body+=mrow('Vehículo',cur.vehicleType);
     if(cur.tmecOfensora)body+=mrow('TMEC','<span style="background:#DC2626;color:#fff;padding:3px 10px;border-radius:6px;font-size:.78rem;font-weight:800">⚠️ Ofensor TMEC</span>');
     if(cur.tipoRuta)body+=mrow('Tipo Ruta','<span class="'+trClass(cur.tipoRuta)+'" style="padding:2px 8px;border-radius:4px;font-size:.78rem">'+cur.tipoRuta+'</span>');
+    {const _tSt=typologyStatus(cur.tipoPlaneada,cur.tipoAsignada);if(_tSt){body+=mrow('Tipología planeada',cur.tipoPlaneada);body+=mrow('Tipología asignada','<span class="'+(_tSt.ok?'tipo-ok':'tipo-alert')+'" style="padding:2px 8px;border-radius:4px;font-size:.78rem;font-weight:700">'+(_tSt.ok?'✓ ':'⚠ ')+(_tSt.label||'(sin dato)')+'</span>');}}
     body+=mrow('Ola','<span style="background:'+WAVE_BG[cur.ola||0]+';color:#fff;padding:2px 8px;border-radius:4px;font-weight:700">Ola '+(cur.ola||'-')+'</span>');if(bay.status==='occupied'&&bay.entryTime){body+=mrow('Ingreso',bay.entryTime.toLocaleTimeString());body+=mrow('Tiempo','<span id="mTimer" style="font-family:monospace;font-weight:800">'+fmt(bay.elapsedSeconds)+'</span>');}}
   else body+='<p style="color:#9CA3AF;font-size:.82rem;padding:6px 0">Sin vehiculo asignado.</p>';
   // Show full queue (items beyond currentIdx)
@@ -2695,6 +2703,46 @@ function trClass(tr){
   if(tl.includes('híbrida')||tl.includes('hibrida')||tl.includes('comercial')||tl.includes('lejana'))return'tr-critica';
   return'tr-neutro';
 }
+
+/* TIPOLOGÍA planeada vs asignada (columnas R/S del CSV) */
+// Agrupa un valor de tipología en una categoría de tamaño. 'asignada' suele venir
+// con nombres más específicos/genéricos que 'planeada' (ej. 'CAR - HATCHBACK' para
+// un 'Automovil' planeado, o 'VAN' genérico para cualquier Small Van) — por eso se
+// compara por categoría, no por texto exacto.
+function _typologyBucket(raw){
+  const v=(raw||'').trim().toUpperCase();
+  if(!v||v==='NO SE ENCUENTRA EN BD')return null;
+  if(v.includes('CAR')||v.includes('AUTOMOVIL'))return'CAR';
+  if(v.includes('LARGE'))return'LARGE_VAN';
+  if(v.includes('MEDIUM'))return'MEDIUM_VAN';
+  if(v.includes('SMALL')||v==='VAN')return'SMALL_VAN'; // 'VAN' genérico cuenta como small van
+  return'OTHER:'+v;
+}
+function _plannedTypologyBucket(raw){
+  const v=(raw||'').trim().toUpperCase();
+  if(!v)return null;
+  if(v==='NHR')return'NHR'; // NHR nunca genera alerta
+  if(v.includes('AUTOMOVIL')||v.includes('CAR'))return'CAR';
+  if(v.includes('LARGE'))return'LARGE_VAN';
+  if(v.includes('MEDIUM'))return'MEDIUM_VAN';
+  if(v.includes('SMALL'))return'SMALL_VAN';
+  return'OTHER:'+v;
+}
+// Devuelve null si no había tipología planeada (no aplica validación).
+// Si hay planeada, devuelve {ok, planned, assigned, label, notFound}.
+function typologyStatus(plannedRaw,assignedRaw){
+  const planned=(plannedRaw||'').trim();
+  if(!planned)return null;
+  const pBucket=_plannedTypologyBucket(planned);
+  const assignedTrim=(assignedRaw||'').trim();
+  const isNotFound=!assignedTrim||assignedTrim.toUpperCase()==='NO SE ENCUENTRA EN BD';
+  if(pBucket==='NHR')return{ok:true,planned,assigned:assignedTrim,label:isNotFound?'—':assignedTrim,notFound:isNotFound};
+  if(isNotFound)return{ok:false,planned,assigned:assignedTrim,label:'No se encuentra en BD',notFound:true};
+  const aBucket=_typologyBucket(assignedTrim);
+  const ok=pBucket!==null&&aBucket!==null&&pBucket===aBucket;
+  return{ok,planned,assigned:assignedTrim,label:assignedTrim};
+}
+
 /* CSV */
 function triggerCSV(){document.getElementById('csvFile').value='';document.getElementById('csvFile').click();}
 function loadCSV(evt){const f=evt.target.files[0];if(!f)return;const r=new FileReader();r.onload=e=>parseCSV(e.target.result);r.readAsText(f,'UTF-8');}
@@ -2721,6 +2769,8 @@ function parseCSV(text){
   const iPar=idx('Paradas')>=0?idx('Paradas'):idx('Stops');
   const iSpr=idx('SPR')>=0?idx('SPR'):(idx('Spr')>=0?idx('Spr'):5);
   const iTR=idx('Tipo de ruta')>=0?idx('Tipo de ruta'):idx('Tipo Ruta')>=0?idx('Tipo Ruta'):-1;
+  const iTipoPlan=idx('Tipologia planeada')>=0?idx('Tipologia planeada'):idx('Tipología planeada');
+  const iTipoAsig=idx('Tipologia asignada')>=0?idx('Tipologia asignada'):idx('Tipología asignada');
   const iTMEC=idx('Ofensor TMEC')>=0?idx('Ofensor TMEC'):idx('Ofensora TMEC')>=0?idx('Ofensora TMEC'):idx('Ofensora')>=0?idx('Ofensora'):idx('Ofensor')>=0?idx('Ofensor'):-1;
   if(iD<0){toast('No se encontro columna de estacion (Estación WTD o Doca)','danger');return;}
   // Parse into a temp structure FIRST — do not touch S.bays until we know the file is valid.
@@ -2748,6 +2798,8 @@ function parseCSV(text){
       vehicleType:(iVT>=0?c[iVT]||'':'').trim(),
       patente:(iP>=0?c[iP]||'':'').trim(),
       tipoRuta:(iTR>=0?c[iTR]||'':'').trim(),
+      tipoPlaneada:(iTipoPlan>=0?c[iTipoPlan]||'':'').trim(),
+      tipoAsignada:(iTipoAsig>=0?c[iTipoAsig]||'':'').trim(),
       tmecOfensora:(()=>{const v=(iTMEC>=0?c[iTMEC]||'':'').trim().toUpperCase();return v!==''&&v!=='NO'&&v!=='N'&&v!=='0'&&v!=='FALSE';})(),
       ola:olaVal
     });

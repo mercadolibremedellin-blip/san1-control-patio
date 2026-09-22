@@ -1882,7 +1882,6 @@ function refreshBayEl(n,el){
     if(cur.ruta)h+='<div class="br">'+cur.ruta+'</div>';
     if(cur.transportadora)h+='<div class="bc">'+cur.transportadora.substring(0,13)+'</div>';
     if(cur.tipoRuta)h+='<div style="font-size:.48rem;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:1px;display:inline-block;font-family:Inter,sans-serif;letter-spacing:.01em" class="'+trClass(cur.tipoRuta)+'">'+(cur.tipoRuta.includes(' - ')?cur.tipoRuta.split(' - ').pop():cur.tipoRuta).substring(0,12)+'</div>';
-    {const _tSt=typologyStatus(cur.tipoPlaneada,cur.tipoAsignada);if(_tSt)h+='<div title="Planeada: '+cur.tipoPlaneada+' — Asignada: '+(_tSt.assigned||'(sin dato)')+'" style="font-size:.48rem;font-weight:700;padding:1px 4px;border-radius:3px;margin-top:1px;display:inline-block;font-family:Inter,sans-serif;letter-spacing:.01em" class="'+(_tSt.ok?'tipo-ok':'tipo-alert')+'">'+(_tSt.ok?'✓ ':'⚠ ')+(_tSt.label||'').substring(0,14)+'</div>';}
     if(cur.tmecOfensora)h+='<div style="font-size:.52rem;font-weight:800;padding:2px 5px;border-radius:3px;margin-top:1px;display:inline-block;background:#DC2626;color:#fff;letter-spacing:.03em;font-family:Inter,sans-serif">⚠️ TMEC</div>';
     if(bay.status==='occupied'){const _spr=cur?cur.spr||0:0;let tc=timerClass(bay.elapsedSeconds,_spr);h+='<div class="'+tc+'" id="t'+n+'">'+fmt(bay.elapsedSeconds)+'</div>';}
     if(bay.status==='prein'){h+='<div style="font-size:.62rem;font-weight:800;color:#6EE7B7;background:rgba(0,0,0,.3);border-radius:3px;padding:1px 3px;margin-top:2px">EN PATIO</div>';}
@@ -2223,7 +2222,6 @@ function openBayModal(n){
   if(cur){body+=mrow('Placa','<strong style="font-size:.98rem;letter-spacing:1px">'+(cur.patente||'-')+'</strong>');body+=mrow('Ruta',cur.ruta||'-');if(cur.zona)body+=mrow('Zona',cur.zona);body+=mrow('Empresa',cur.transportadora||'-');if(cur.vehicleType)body+=mrow('Vehículo',cur.vehicleType);
     if(cur.tmecOfensora)body+=mrow('TMEC','<span style="background:#DC2626;color:#fff;padding:3px 10px;border-radius:6px;font-size:.78rem;font-weight:800">⚠️ Ofensor TMEC</span>');
     if(cur.tipoRuta)body+=mrow('Tipo Ruta','<span class="'+trClass(cur.tipoRuta)+'" style="padding:2px 8px;border-radius:4px;font-size:.78rem">'+cur.tipoRuta+'</span>');
-    {const _tSt=typologyStatus(cur.tipoPlaneada,cur.tipoAsignada);if(_tSt){body+=mrow('Tipología planeada',cur.tipoPlaneada);body+=mrow('Tipología asignada','<span class="'+(_tSt.ok?'tipo-ok':'tipo-alert')+'" style="padding:2px 8px;border-radius:4px;font-size:.78rem;font-weight:700">'+(_tSt.ok?'✓ ':'⚠ ')+(_tSt.label||'(sin dato)')+'</span>');}}
     body+=mrow('Ola','<span style="background:'+WAVE_BG[cur.ola||0]+';color:#fff;padding:2px 8px;border-radius:4px;font-weight:700">Ola '+(cur.ola||'-')+'</span>');if(bay.status==='occupied'&&bay.entryTime){body+=mrow('Ingreso',bay.entryTime.toLocaleTimeString());body+=mrow('Tiempo','<span id="mTimer" style="font-family:monospace;font-weight:800">'+fmt(bay.elapsedSeconds)+'</span>');}}
   else body+='<p style="color:#9CA3AF;font-size:.82rem;padding:6px 0">Sin vehiculo asignado.</p>';
   // Show full queue (items beyond currentIdx)

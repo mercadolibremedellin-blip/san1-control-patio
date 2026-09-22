@@ -1984,7 +1984,7 @@ function processScan(){
     if(S.scanMode==='in'){
       if(bay.status==='occupied'){showScanResult('Doca '+bayNum+' ya esta en carga','err');return;}
       if(bay.status!=='waiting'&&bay.status!=='prein'){showScanResult('Doca '+bayNum+' no esta en espera o en patio','err');return;}
-      bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
+      bay._statusBeforeEnter=bay.status;bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
       addActivity('in','Doca '+bayNum,plate+' '+(cur.ruta||''));
       refreshBayEl(bayNum);updateStats();renderActivityFeed();saveLocal();broadcastState();SND.enter();
       showScanResult('INGRESO REGISTRADO\nDoca: '+bayNum+' | '+plate+'\n'+(cur.ruta||''),'ok');
@@ -2061,14 +2061,14 @@ function processScan(){
         // Ahora continúa con el ingreso del nuevo vehículo (cur ya está actualizado)
         // Verificar que el nuevo cur coincide con el qrOla
         if(cur.ola&&cur.ola!==qrOla){showScanResult('Salida auto de '+(_prevCur?_prevCur.patente||'?':'?')+'\nPero el siguiente es Ola '+cur.ola+' no Ola '+qrOla+' en E'+bayNum,'err');refreshBayEl(bayNum);updateStats();saveLocal();broadcastState();renderScannerQueue();renderScanHist();return;}
-        bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
+        bay._statusBeforeEnter='waiting';bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
         addActivity('in','Doca '+bayNum,(cur.patente||'')+' '+(cur.ruta||''));
         refreshBayEl(bayNum);updateStats();renderActivityFeed();saveLocal();broadcastState();SND.enter();
         showScanResult('AUTO-SALIDA + INGRESO\n↑ Salida: '+(_prevCur?_prevCur.patente||'?':'?')+'  ('+_dur+')\n↓ Ingreso: '+(cur.patente||'?')+' Ola '+qrOla,'ok');
         renderScannerQueue();renderScanHist();return;
       }
       if(bay.status!=='waiting'&&bay.status!=='prein'){showScanResult('E'+bayNum+' no está en espera','err');return;}
-      bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
+      bay._statusBeforeEnter=bay.status;bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
       addActivity('in','Doca '+bayNum,(cur?cur.patente+' ':'')+(cur?cur.ruta||'':''));
       refreshBayEl(bayNum);updateStats();renderActivityFeed();saveLocal();broadcastState();SND.enter();
       showScanResult('INGRESO REGISTRADO\nE'+bayNum+(cur?' | '+cur.patente:'')+(cur&&cur.ruta?'\n'+cur.ruta:''),'ok');
@@ -2093,7 +2093,7 @@ function processScan(){
     if(!isCur){showScanResult('Placa '+plate+' en cola (no es la actual en Doca '+foundBay+')','err');return;}
     if(bay.status==='occupied'){showScanResult('Doca '+foundBay+' ya esta en carga ('+plate+')','err');return;}
     if(bay.status!=='waiting'&&bay.status!=='prein'){showScanResult('Doca '+foundBay+' no esta en espera o en patio','err');return;}
-    bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
+    bay._statusBeforeEnter=bay.status;bay.status='occupied';bay.entryTime=new Date();bay.elapsedSeconds=0;
     addActivity('in','Doca '+foundBay,plate+' '+(cur.ruta||''));
     refreshBayEl(foundBay);updateStats();renderActivityFeed();saveLocal();broadcastState();SND.enter();
     showScanResult('INGRESO REGISTRADO\nDoca: '+foundBay+' | '+plate+'\n'+(cur.ruta||''),'ok');
@@ -2280,6 +2280,7 @@ function openBayModal(n){
   if(_curV&&_nxtV&&_nxtV.ola!==_curV.ola)acts+='<button class="btn btn-amber" onclick="doSkipToNextOla()" title="El vehículo de Ola '+_curV.ola+' no llegó — ingresar el siguiente">&#x23ED; Saltar Ola '+_curV.ola+' → Ola '+_nxtV.ola+'</button>';
 }
   if(bay.status==='occupied')acts+='<button class="btn btn-red" onclick="doExit()">Salida / Liberar</button>';
+  if(bay.status==='occupied')acts+='<button class="btn btn-gray btn-sm" onclick="undoEnter()" title="Si el ingreso fue un error de placa o de muelle, esto lo revierte y el vehículo vuelve a Pendientes">↩ Reversar Ingreso</button>';
   if(bay.status==='waiting'||bay.status==='prein'||bay.status==='occupied')acts+='<button class="btn btn-purple" onclick="doReassign('+n+','+bay.currentIdx+')">Reasignar Actual</button>';
   if(cur&&cur.patente&&(bay.status==='waiting'||bay.status==='occupied'||bay.status==='prein'))
     acts+='<button class="btn btn-amber" onclick="llamarConductor(\''+n+'\',\''+cur.patente+'\','+cur.ola+')">📣 Llamar</button>';
@@ -2343,7 +2344,28 @@ function preinConfirm(){
 }
 function doPreIn(){const n=S.selectedBay;if(!n)return;const b=S.bays[n];if(b.status!=='waiting')return;b.status='prein';const v=b.queue[b.currentIdx];addActivity('prein','Doca '+n,v?v.patente+' en patio':'');refreshBayEl(n);updateStats();renderActivityFeed();saveLocal();broadcastState();toast('Pre-ingreso: '+(v?v.patente:'')+'  Muelle '+n,'success');closeBayModal();checkPreinDispatch();}
 function doQueuePreIn(bayNum,queueIdx){const b=S.bays[bayNum];if(!b)return;const v=b.queue[queueIdx];if(!v)return;v.prein=!v.prein;addActivity('prein','Doca '+bayNum,(v.patente||'')+(v.prein?' en patio (cola)':' retirado de patio'));renderPendingQueue();renderScannerQueue();updateStats();saveLocal();broadcastState();toast((v.prein?'En Patio: ':'Retirado: ')+(v.patente||'')+' Muelle '+bayNum,'success');closeBayModal();if(v.prein)checkPreinDispatch();}
-function doEnter(){const n=S.selectedBay;if(!n)return;const b=S.bays[n];if(b.status!=='waiting'&&b.status!=='prein')return;b.status='occupied';b.preInReady=false;b.entryTime=new Date();b.elapsedSeconds=0;const v=b.queue[b.currentIdx];addActivity('in','Doca '+n,v?v.patente+' '+v.ruta:'');refreshBayEl(n);updateStats();renderActivityFeed();saveLocal();broadcastState();toast('Ingresado: '+(v?v.patente:'')+'  Muelle '+n,'success');closeBayModal();}
+function doEnter(){const n=S.selectedBay;if(!n)return;const b=S.bays[n];if(b.status!=='waiting'&&b.status!=='prein')return;b._statusBeforeEnter=b.status;b.status='occupied';b.preInReady=false;b.entryTime=new Date();b.elapsedSeconds=0;const v=b.queue[b.currentIdx];addActivity('in','Doca '+n,v?v.patente+' '+v.ruta:'');refreshBayEl(n);updateStats();renderActivityFeed();saveLocal();broadcastState();toast('Ingresado: '+(v?v.patente:'')+'  Muelle '+n,'success');closeBayModal();}
+// Revierte un Ingreso dado por error (placa o muelle equivocado): el muelle vuelve
+// al estado que tenía justo antes del Ingreso (waiting o prein — se recuerda en
+// _statusBeforeEnter, guardado en los 5 puntos donde se marca 'occupied') y el
+// vehículo vuelve a aparecer en Pendientes, sin tocar cola/historial.
+function undoEnter(){
+  const n=S.selectedBay;if(!n)return;
+  const b=S.bays[n];
+  if(b.status!=='occupied')return;
+  const v=b.queue[b.currentIdx];
+  if(!confirm('¿Revertir el ingreso'+(v&&v.patente?' de '+v.patente:'')+' en Muelle '+n+'? Volverá a aparecer como pendiente.'))return;
+  const _prevStatus=(b._statusBeforeEnter==='waiting'||b._statusBeforeEnter==='prein')?b._statusBeforeEnter:'waiting';
+  b.status=_prevStatus;
+  b.entryTime=null;b.elapsedSeconds=0;
+  delete b._statusBeforeEnter;
+  addActivity('reassign','Doca '+n,'Ingreso revertido'+(v&&v.patente?' — '+v.patente:''));
+  refreshBayEl(n);updateStats();renderActivityFeed();renderPendingQueue();renderScannerQueue();saveLocal();
+  broadcastEvent('UNDO_ENTER',{bayNum:n,status:_prevStatus,ts:Date.now()});
+  broadcastState();
+  toast('Ingreso revertido'+(v&&v.patente?': '+v.patente:'')+' — vuelve a Pendientes','warning');
+  closeBayModal();
+}
 function doExit(){const n=S.selectedBay;if(!n)return;const b=S.bays[n];if(b.status!=='occupied')return;const cur=b.queue[b.currentIdx];const dur=fmt(b.elapsedSeconds);const exitOla=cur.ola||0;S.history.push({doca:n,patente:cur.patente||'',transportadora:cur.transportadora||'',ruta:cur.ruta||'',ola:cur.ola||'',ingreso:b.entryTime?b.entryTime.toLocaleString():'',salida:new Date().toLocaleString(),tiempo:dur});addActivity('out','Doca '+n,cur?cur.patente+' ('+dur+') '+cur.ruta:'');b.currentIdx++;b.entryTime=null;b.elapsedSeconds=0;
   if(b.currentIdx<b.queue.length){
     const nextVeh=b.queue[b.currentIdx];
@@ -3044,7 +3066,25 @@ if(S._stateTs<_todayMs){S.stateReady=false;S.isStateOwner=false;}else{const data
 try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=parseInt(localStorage.getItem('san1_state_ts')||'0');if(_fc>0&&_fc>=_fs){ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});S.stateGen=Date.now();S.isStateOwner=true;}}catch(e){}}
 
 /* REAL-TIME */
-function setupBC(){try{S.bc=new BroadcastChannel('san1-v3');S.bc.onmessage=e=>{if(S.isBroadcasting)return;const t=e.data.type,d=e.data.data;if(t==='STATE')applyRemote(d);else if(t==='CSV_LOAD'){S.isStateOwner=false;applyRemote(d,true);}else if(t==='USERS_SYNC'){const _lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(d&&d.users&&d.ts>_lt){AUTH.saveUsers(d.users);}else if(d&&Array.isArray(d))AUTH.saveUsers(d);}else if(t==='REASSIGN_NOTIF')showReassignNotif(d);else if(t==='PLATE_CHANGE')applyPlateChange(d);else if(t==='WAVE_DISPATCH')handleWaveDispatch(d);else if(t==='DRIVER_CALL')handleDriverCall(d);else if(t==='TMEC_ANNOUNCE'){speakUrgentExit(d.bayNum,d.plate,d.transportadora,true);}else if(t==='REQUEST_STATE'){if(S.isStateOwner){broadcastState(true);AUTH.syncUsers();}}};}catch(e){}}
+function setupBC(){try{S.bc=new BroadcastChannel('san1-v3');S.bc.onmessage=e=>{if(S.isBroadcasting)return;const t=e.data.type,d=e.data.data;if(t==='STATE')applyRemote(d);else if(t==='CSV_LOAD'){S.isStateOwner=false;applyRemote(d,true);}else if(t==='USERS_SYNC'){const _lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(d&&d.users&&d.ts>_lt){AUTH.saveUsers(d.users);}else if(d&&Array.isArray(d))AUTH.saveUsers(d);}else if(t==='REASSIGN_NOTIF')showReassignNotif(d);else if(t==='PLATE_CHANGE')applyPlateChange(d);else if(t==='WAVE_DISPATCH')handleWaveDispatch(d);else if(t==='DRIVER_CALL')handleDriverCall(d);else if(t==='TMEC_ANNOUNCE'){speakUrgentExit(d.bayNum,d.plate,d.transportadora,true);}else if(t==='UNDO_ENTER')applyUndoEnter(d);else if(t==='REQUEST_STATE'){if(S.isStateOwner){broadcastState(true);AUTH.syncUsers();}}};}catch(e){}}
+// Aplica en OTROS dispositivos la reversión de un Ingreso hecha por un admin/operador.
+// Se maneja como evento dedicado (igual que PLATE_CHANGE/REASSIGN_NOTIF) y NO pasa por
+// el merge inteligente de applyRemote: ese merge protege a propósito cualquier muelle
+// 'occupied'/'prein' contra ser degradado por un STATE genérico (para no perder progreso
+// real por una carrera de mensajes) — pero acá es exactamente lo opuesto: una corrección
+// explícita y puntual de un solo muelle, que si debe aplicarse siempre.
+function applyUndoEnter(data){
+  if(!data||!data.bayNum)return;
+  const b=S.bays[data.bayNum];if(!b)return;
+  if(b.status!=='occupied')return; // ya cambió por otra razón mientras tanto — no pisar
+  b.status=(data.status==='waiting'||data.status==='prein')?data.status:'waiting';
+  b.entryTime=null;b.elapsedSeconds=0;
+  delete b._statusBeforeEnter;
+  refreshBayEl(data.bayNum);updateStats();renderActivityFeed();renderPendingQueue();
+  if(S.scannerOpen)renderScannerQueue();
+  if(AUTH.current&&AUTH.current.role==='coordinator')renderCoordDash();
+  saveLocal();
+}
 // ── Firebase: respaldo automático si Ably falla/se bloquea ────────────────────
 // Misma idea que el circuit breaker: cuando Ably no está sano, en vez de dejar a
 // los dispositivos sin sincronizar entre sí, la app publica/escucha por Firebase
@@ -3140,6 +3180,7 @@ function setupAbly(key,ch){try{if(S.ably)try{S.ably.close();}catch(e){}ch=ch||S.
   S.ablyChannel.subscribe('USERS_SYNC',msg=>{const _d=msg.data,_lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(_d&&_d.users&&_d.ts>_lt){AUTH.saveUsers(_d.users);}else if(_d&&Array.isArray(_d))AUTH.saveUsers(_d);});
   S.ablyChannel.subscribe('REQUEST_STATE',msg=>{if(S.isStateOwner){const _now=Date.now();if(!S._lastReqStateResp||_now-S._lastReqStateResp>8000){S._lastReqStateResp=_now;broadcastState(true);AUTH.syncUsers();}}});
   S.ablyChannel.subscribe('FORCE_CLEAR',msg=>{const _d=msg.data||{};const _ts=_d.ts||Date.now();try{localStorage.setItem('san1_clear_ts',String(_ts));}catch(e){}ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b.status==='blocked')return;b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;});S.history=[];S.activityLog=[];S.stateGen=_ts||Date.now();renderLayout();renderActivityFeed();saveLocal();toast('Patio limpiado remotamente','info');});
+  S.ablyChannel.subscribe('UNDO_ENTER',msg=>applyUndoEnter(msg.data));
   S.ablyChannel.subscribe('REQUEST_USERS',msg=>{const _myTs=parseInt(localStorage.getItem('san1_users_ts')||'0');const _reqTs=msg.data&&msg.data.ts?msg.data.ts:0;if(AUTH.getUsers().length>1&&_myTs>=_reqTs)AUTH.syncUsers();});S.ably.connection.on('connected',()=>{document.getElementById('connDot').className='conn-dot ok';document.getElementById('connText').textContent='Sync activo';if(S._ablyReconnectTimer){clearTimeout(S._ablyReconnectTimer);S._ablyReconnectTimer=null;}S._reconnectAttempts=0;toast('Sync activo','success');setTimeout(()=>{try{S.ablyChannel.publish('REQUEST_USERS',{ts:parseInt(localStorage.getItem('san1_users_ts')||'0')});}catch(e){}},1200);let _rsr=0;const _rs=()=>{if(S._gotRemoteState||_rsr>8){if(!S._gotRemoteState&&!S.isStateOwner)S.isStateOwner=true;return;}_rsr++;try{S.ablyChannel.publish('REQUEST_STATE',{ts:Date.now()});}catch(e){}setTimeout(_rs,3000);};setTimeout(_rs,800);});S.ably.connection.on('disconnected',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Reconectando...';});S.ably.connection.on('suspended',()=>{document.getElementById('connDot').className='conn-dot warn';document.getElementById('connText').textContent='Sin señal - reintentando...';});S.ably.connection.on('failed',(stateChange)=>{
   // CIRCUIT BREAKER: si la cuenta de Ably está bloqueada (límite de mensajes excedido,
   // código 40112) o cualquier error 401 de autenticación, NO insistir — reintentar contra

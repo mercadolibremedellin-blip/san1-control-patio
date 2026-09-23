@@ -3058,12 +3058,23 @@ function openResumen(){
 
 /* LOCAL STORAGE */
 function saveLocal(){S.stateGen++;S._stateTs=Date.now();try{const save={};ALL_BAYS.forEach(n=>{const b=S.bays[n];save[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds};});localStorage.setItem('san1_bays',JSON.stringify(save));localStorage.setItem('san1_hist',JSON.stringify(S.history.slice(-500)));localStorage.setItem('san1_gen',String(S.stateGen));localStorage.setItem('san1_state_ts',String(S._stateTs));localStorage.setItem('san1_dispatch_ola',String(S.dispatchedOla||0));}catch(e){}archiveHistory();}
-function loadLocalState(){try{const raw=localStorage.getItem('san1_bays');if(raw){S.stateReady=true;const g=localStorage.getItem('san1_gen');if(g)S.stateGen=parseInt(g)||0;const _ts=localStorage.getItem('san1_state_ts');if(_ts)S._stateTs=parseInt(_ts)||0;// Solo es dueño del estado si fue guardado HOY — si es de ayer, espera estado fresco
-const _today=new Date();_today.setHours(0,0,0,0);const _todayMs=_today.getTime();S.isStateOwner=S._stateTs>=_todayMs;// Solo restaurar dispatchedOla si el estado es de HOY — ayer quedó en 1 y causaba bugs en TV
+function loadLocalState(){try{const raw=localStorage.getItem('san1_bays');if(raw){S.stateReady=true;const g=localStorage.getItem('san1_gen');if(g)S.stateGen=parseInt(g)||0;const _ts=localStorage.getItem('san1_state_ts');if(_ts)S._stateTs=parseInt(_ts)||0;
+const _today=new Date();_today.setHours(0,0,0,0);const _todayMs=_today.getTime();
+// INCIDENTE REAL (2026-09-23): esto ANTES decía "S.isStateOwner=S._stateTs>=_todayMs" —
+// es decir, cualquier dispositivo con caché de HORAS atrás (pero del mismo día calendario)
+// se creía dueño del estado apenas abría la app, y respondía REQUEST_STATE de otros
+// equipos con su propio dato viejo, pisando en vivo el patio real de todos. Ahora
+// NUNCA se auto-declara dueño desde caché local sola — la propiedad del estado se
+// gana negociando por red (ver el flujo _rs() en el handler 'connected' de Ably: pide
+// estado fresco varias veces, y solo si de verdad nadie contesta se auto-declara
+// dueño). Esto no afecta el uso 100% local/offline: escanear, CSV, entradas/salidas
+// siguen funcionando igual sin importar isStateOwner.
+S.isStateOwner=false;
+// Solo restaurar dispatchedOla si el estado es de HOY — ayer quedó en 1 y causaba bugs en TV
 const _dol=localStorage.getItem('san1_dispatch_ola');if(_dol!==null&&S._stateTs>=_todayMs)S.dispatchedOla=parseInt(_dol)||0;
 // Si el estado guardado es de ANTES de hoy, no restaurar colas — empezar limpio
 if(S._stateTs<_todayMs){S.stateReady=false;S.isStateOwner=false;}else{const data=JSON.parse(raw);const _localStaleGuard=Date.now()-8*60*60*1000;ALL_BAYS.forEach(n=>{if(!data[n])return;const d=data[n],b=S.bays[n];b.queue=d.queue||[];b.currentIdx=d.currentIdx||0;const _et=d.entryTime?new Date(d.entryTime).getTime():0;if(d.status==='occupied'&&_et<_localStaleGuard){b.status='waiting';b.entryTime=null;b.elapsedSeconds=0;}else{b.status=d.status||'empty';b.entryTime=d.entryTime?new Date(d.entryTime):null;b.elapsedSeconds=d.elapsedSeconds||0;if(b.status==='occupied'&&b.entryTime)b.elapsedSeconds=Math.floor((Date.now()-b.entryTime.getTime())/1000);}});}}const rh=localStorage.getItem('san1_hist');if(rh)S.history=JSON.parse(rh);loadActivityLog();}catch(e){}// Force-empty if a clear happened after last save
-try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=parseInt(localStorage.getItem('san1_state_ts')||'0');if(_fc>0&&_fc>=_fs){ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});S.stateGen=Date.now();S.isStateOwner=true;}}catch(e){}}
+try{const _fc=parseInt(localStorage.getItem('san1_clear_ts')||'0');const _fs=parseInt(localStorage.getItem('san1_state_ts')||'0');if(_fc>0&&_fc>=_fs){ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});S.stateGen=Date.now();}}catch(e){}}
 
 /* REAL-TIME */
 function setupBC(){try{S.bc=new BroadcastChannel('san1-v3');S.bc.onmessage=e=>{if(S.isBroadcasting)return;const t=e.data.type,d=e.data.data;if(t==='STATE')applyRemote(d);else if(t==='CSV_LOAD'){S.isStateOwner=false;applyRemote(d,true);}else if(t==='USERS_SYNC'){const _lt=parseInt(localStorage.getItem('san1_users_ts')||'0');if(d&&d.users&&d.ts>_lt){AUTH.saveUsers(d.users);}else if(d&&Array.isArray(d))AUTH.saveUsers(d);}else if(t==='REASSIGN_NOTIF')showReassignNotif(d);else if(t==='PLATE_CHANGE')applyPlateChange(d);else if(t==='WAVE_DISPATCH')handleWaveDispatch(d);else if(t==='DRIVER_CALL')handleDriverCall(d);else if(t==='TMEC_ANNOUNCE'){speakUrgentExit(d.bayNum,d.plate,d.transportadora,true);}else if(t==='UNDO_ENTER')applyUndoEnter(d);else if(t==='REQUEST_STATE'){if(S.isStateOwner){broadcastState(true);AUTH.syncUsers();}}};}catch(e){}}
@@ -3244,7 +3255,14 @@ function manualReconnect(){
   }
 }
 function broadcastEvent(type,data){try{S.bc&&S.bc.postMessage({type,data});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish(type,data);}catch(e){}}
-function applyRemote(data,force){if(!data)return;if(data.__call&&S.driverPlate&&data.__call.plate&&data.__call.plate.toUpperCase()===S.driverPlate.toUpperCase()&&(Date.now()-data.__call.ts)<3600000&&S._lastShownCall!==data.__call.ts){S._lastShownCall=data.__call.ts;showDriverReadyAlert(data.__call.bayNum);}if(force){// CSV_LOAD: reset TV dispatch banner so it can't stay stuck from a previous session
+function applyRemote(data,force){if(!data)return;
+// INCIDENTE REAL (2026-09-23), 2da capa de defensa: si este mensaje NO es una
+// acción explícita (force) y trae un __ts más de 15 minutos MÁS VIEJO que el
+// nuestro, es casi seguro un dispositivo con caché atrasada re-transmitiendo su
+// estado — se descarta por completo antes de tocar ninguna doca. No afecta CSV_LOAD
+// ni "Limpiar" (van con force=true) ni broadcasts normales al día (diferencia <15min).
+if(!force&&data.__ts!==undefined&&S._stateTs&&data.__ts<S._stateTs-15*60*1000){return;}
+if(data.__call&&S.driverPlate&&data.__call.plate&&data.__call.plate.toUpperCase()===S.driverPlate.toUpperCase()&&(Date.now()-data.__call.ts)<3600000&&S._lastShownCall!==data.__call.ts){S._lastShownCall=data.__call.ts;showDriverReadyAlert(data.__call.bayNum);}if(force){// CSV_LOAD: reset TV dispatch banner so it can't stay stuck from a previous session
   if(S._tvDispatchTimer){clearTimeout(S._tvDispatchTimer);S._tvDispatchTimer=null;}if(S._tvCountdownInt){clearInterval(S._tvCountdownInt);S._tvCountdownInt=null;}const _fb=document.getElementById('tvDispatchBanner');if(_fb)_fb.style.display='none';}if(!force&&data.__gen!==undefined){if(data.__gen<S.stateGen)return;if(data.__gen===S.stateGen&&data.__ts!==undefined&&S._stateTs&&data.__ts<S._stateTs)return;}// Reject state from before the last clear
 const _clrGuard=parseInt(localStorage.getItem('san1_clear_ts')||'0');if(_clrGuard&&data.__ts&&data.__ts<_clrGuard)return;S._gotRemoteState=true;S.stateReady=true;
 const _SR={empty:0,blocked:0,waiting:1,prein:2,occupied:3};
@@ -3269,6 +3287,15 @@ ALL_BAYS.forEach(n=>{const r=data[n];if(!r)return;const b=S.bays[n];
   const _localHasProgress=b.status==='occupied'||b.status==='prein';
   const _remoteLooksReset=(r.currentIdx||0)===0&&(r.status==='waiting'||r.status==='empty');
   if(_localHasProgress&&_remoteLooksReset&&(r.currentIdx||0)<b.currentIdx){
+    refreshBayEl(n);return;
+  }
+  // INCIDENTE REAL (2026-09-23), 3ra capa de defensa: el guard anterior solo protege
+  // docas 'occupied'/'prein'. Una doca 'waiting' con currentIdx>0 (ya avanzó en la fila,
+  // ej. el chofer ya fue llamado) también es progreso real que un dispositivo con caché
+  // vieja puede pisar con un currentIdx distinto (no necesariamente 0) — eso saltaba
+  // el guard de arriba y caía directo al 'else' de abajo (sobrescritura completa).
+  // Si no es force y el remoto trae MENOS avance que el local, se descarta esta doca.
+  if(!force&&b.status==='waiting'&&b.currentIdx>0&&(r.currentIdx||0)<b.currentIdx){
     refreshBayEl(n);return;
   }
   // Smart merge: never regress a bay that was locally advanced at the same queue position

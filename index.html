@@ -1269,12 +1269,12 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
 'use strict';
 // Marca de versión del build — se actualiza en cada deploy. Usada por el detector
 // de versión nueva más abajo para avisar a dispositivos que quedaron en caché vieja.
-const _BUILD_VERSION='20260901-stab2';
+const _BUILD_VERSION='20260928-bays1-55';
 const LEFT_BAYS=Array.from({length:31},(_,i)=>45+i);
 const RIGHT_BAYS=Array.from({length:26},(_,i)=>44-i);
 const BOTTOM_BAYS=[76,77,78,79,80];
 // Bays ordered ascending: 19 → 80
-const ALL_POSSIBLE_BAYS=Array.from({length:66},(_,i)=>15+i); // 15-80
+const ALL_POSSIBLE_BAYS=Array.from({length:80},(_,i)=>1+i); // 1-80 (ampliación 2026-09-28: rango activo pasó de E16-59 a E1-55)
 const COMPANIES=['Cabify','Humadea','Logysto','Viotrans','Distransa','Carga Paramo','99 Minutos','Crowd'];
 const COMP_KEYS_DEFAULT={'Cabify':['cabify'],'Humadea':['humadea'],'Logysto':['logysto'],'Viotrans':['viotrans'],'Distransa':['distransa'],'Carga Paramo':['paramo'],'99 Minutos':['99 minutos','99min'],'Crowd':['crowd','meliextra','meli extra','meliextra','crowd meli'],'Unicarga':['unicarga']};
 let COMP_KEYS={...COMP_KEYS_DEFAULT};
@@ -1397,8 +1397,8 @@ function genQR(plate,containerId){
 // igual. Antes, un error sin capturar en cualquier punto de init() dejaba a
 // ESE dispositivo completamente sin sync ni reloj, sin ningún aviso.
 async function init(){
-  // Load active bays (default 18-76)
-  try{const _ab=localStorage.getItem('san1_active_bays');ALL_BAYS=_ab?JSON.parse(_ab):Array.from({length:44},(_,i)=>16+i);}catch(e){ALL_BAYS=Array.from({length:44},(_,i)=>16+i);}
+  // Load active bays (default E1-E55 desde 2026-09-28 — antes era E16-E59/44 muelles)
+  try{const _ab=localStorage.getItem('san1_active_bays');ALL_BAYS=_ab?JSON.parse(_ab):Array.from({length:55},(_,i)=>1+i);}catch(e){ALL_BAYS=Array.from({length:55},(_,i)=>1+i);}
   try{loadTransportadoras();}catch(e){console.warn('SAN1: loadTransportadoras falló',e);}
   // Initialize all possible bays so any can be activated later
   try{
@@ -1406,10 +1406,17 @@ async function init(){
   }catch(e){console.warn('SAN1: inicialización de muelles falló',e);}
   // One-time forced clean for version bump — clears stale state from previous sessions
   try{
-    const _appVer='san1_20260819';
+    const _appVer='san1_20260928_bays1_55';
     if(localStorage.getItem('san1_app_ver')!==_appVer){
       localStorage.setItem('san1_app_ver',_appVer);
-      try{localStorage.removeItem('san1_bays');localStorage.removeItem('san1_hist');localStorage.removeItem('san1_gen');localStorage.removeItem('san1_state_ts');localStorage.removeItem('san1_dispatch_ola');localStorage.removeItem('san1_alerted_bays');}catch(e){}
+      try{localStorage.removeItem('san1_bays');localStorage.removeItem('san1_hist');localStorage.removeItem('san1_gen');localStorage.removeItem('san1_state_ts');localStorage.removeItem('san1_dispatch_ola');localStorage.removeItem('san1_alerted_bays');localStorage.removeItem('san1_active_bays');}catch(e){}
+      // AMPLIACIÓN 2026-09-28: la bodega ampliró capacidad de despacho — el rango de
+      // muelles activos pasa de E16-E59 (44) a E1-E55 (55). Se fuerza el nuevo rango
+      // en memoria sin importar qué tuviera guardado localStorage (p.ej. si algún
+      // dispositivo había usado "Muelles" para desactivar un muelle viejo), y se
+      // vuelve a persistir limpio para que el Bay Manager arranque consistente.
+      ALL_BAYS=Array.from({length:55},(_,i)=>1+i);
+      try{saveActiveBays();}catch(e){}
       ALL_BAYS.forEach(n=>{const b=S.bays[n];if(b&&b.status!=='blocked'){b.status='empty';b.queue=[];b.currentIdx=0;b.entryTime=null;b.elapsedSeconds=0;}});
       S.history=[];S.dispatchedOla=0;S.stateGen=0;S.stateReady=false;S.isStateOwner=false;
     } else {

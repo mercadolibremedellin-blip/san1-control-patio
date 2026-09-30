@@ -1269,12 +1269,18 @@ select,input[type=number],input[type=text],textarea{font-family:'Inter',sans-ser
 'use strict';
 // Marca de versión del build — se actualiza en cada deploy. Usada por el detector
 // de versión nueva más abajo para avisar a dispositivos que quedaron en caché vieja.
-const _BUILD_VERSION='20260928-bays1-55';
+const _BUILD_VERSION='20260929-verguard';
 const LEFT_BAYS=Array.from({length:31},(_,i)=>45+i);
 const RIGHT_BAYS=Array.from({length:26},(_,i)=>44-i);
 const BOTTOM_BAYS=[76,77,78,79,80];
 // Bays ordered ascending: 19 → 80
 const ALL_POSSIBLE_BAYS=Array.from({length:80},(_,i)=>1+i); // 1-80 (ampliación 2026-09-28: rango activo pasó de E16-59 a E1-55)
+// Firma del ESQUEMA de numeración de muelles (no confundir con _BUILD_VERSION, que
+// cambia en cada deploy aunque no toque muelles). Solo cambia cuando de verdad se
+// modifica ALL_POSSIBLE_BAYS (un cambio real de rango físico de docas), así que un
+// deploy de un bug cualquiera no genera falsos "dispositivo incompatible" entre
+// equipos que simplemente refrescaron en momentos distintos.
+const _BAYS_SCHEMA=ALL_POSSIBLE_BAYS[0]+'-'+ALL_POSSIBLE_BAYS[ALL_POSSIBLE_BAYS.length-1];
 const COMPANIES=['Cabify','Humadea','Logysto','Viotrans','Distransa','Carga Paramo','99 Minutos','Crowd'];
 const COMP_KEYS_DEFAULT={'Cabify':['cabify'],'Humadea':['humadea'],'Logysto':['logysto'],'Viotrans':['viotrans'],'Distransa':['distransa'],'Carga Paramo':['paramo'],'99 Minutos':['99 minutos','99min'],'Crowd':['crowd','meliextra','meli extra','meliextra','crowd meli'],'Unicarga':['unicarga']};
 let COMP_KEYS={...COMP_KEYS_DEFAULT};
@@ -2869,7 +2875,7 @@ function parseCSV(text){
   // Broadcast CSV_LOAD — include __gen/__ts so receiving devices reset their stateGen
   // and don't reject subsequent STATE broadcasts from the admin
   const csvPayload={};ALL_BAYS.forEach(n=>{const b=S.bays[n];csvPayload[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds||0};});
-  csvPayload.__gen=S.stateGen;csvPayload.__ts=S._stateTs||0;csvPayload.__dispatchOla=S.dispatchedOla||0;csvPayload.__call=null;csvPayload.__ver=_BUILD_VERSION;
+  csvPayload.__gen=S.stateGen;csvPayload.__ts=S._stateTs||0;csvPayload.__dispatchOla=S.dispatchedOla||0;csvPayload.__call=null;csvPayload.__baysSchema=_BAYS_SCHEMA;
   S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'CSV_LOAD',data:csvPayload});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('CSV_LOAD',csvPayload);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);
   // Follow-up broadcasts: ensures devices with brief lag also get the new state
   setTimeout(()=>broadcastState(true),1500);
@@ -2912,7 +2918,7 @@ function forceResync(){
   // This overrides stateGen on all receiving devices — cannot be rejected
   S.stateGen=Date.now();S._stateTs=Date.now();S.isStateOwner=true;
   const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds};});
-  p.__gen=S.stateGen;p.__ts=S._stateTs;p.__dispatchOla=S.dispatchedOla||0;p.__call=S.pendingDriverCall||null;p.__hist=S.history.slice(-150);p.__ver=_BUILD_VERSION;
+  p.__gen=S.stateGen;p.__ts=S._stateTs;p.__dispatchOla=S.dispatchedOla||0;p.__call=S.pendingDriverCall||null;p.__hist=S.history.slice(-150);p.__baysSchema=_BAYS_SCHEMA;
   S.isBroadcasting=true;
   try{S.bc&&S.bc.postMessage({type:'CSV_LOAD',data:p});}catch(e){}
   try{S.ablyChannel&&S.ablyChannel.publish('CSV_LOAD',p);}catch(e){}
@@ -3238,7 +3244,7 @@ function _doBroadcastState(){
   // broadcast rutinario (el que se dispara en cada escaneo) manda solo un historial
   // reciente pequeño; el historial completo se sincroniza vía CSV_LOAD/Sync manual
   // (mucho menos frecuentes) y por acumulación incremental entre broadcasts.
-  const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null};});p.__gen=S.stateGen;p.__ts=S._stateTs||0;p.__call=S.pendingDriverCall||null;p.__dispatchOla=S.dispatchedOla||0;p.__hist=S.history.slice(-10);p.__ver=_BUILD_VERSION;S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'STATE',data:p});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('STATE',p);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);document.getElementById('lastSync').textContent='Sync: '+new Date().toLocaleTimeString();
+  const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null};});p.__gen=S.stateGen;p.__ts=S._stateTs||0;p.__call=S.pendingDriverCall||null;p.__dispatchOla=S.dispatchedOla||0;p.__hist=S.history.slice(-10);p.__baysSchema=_BAYS_SCHEMA;S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'STATE',data:p});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('STATE',p);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);document.getElementById('lastSync').textContent='Sync: '+new Date().toLocaleTimeString();
 }
 function manualReconnect(){
   if(!S._reconnectAttempts)S._reconnectAttempts=0;
@@ -3264,16 +3270,18 @@ function manualReconnect(){
 function broadcastEvent(type,data){try{S.bc&&S.bc.postMessage({type,data});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish(type,data);}catch(e){}}
 function applyRemote(data,force){if(!data)return;
 // INCIDENTE REAL (2026-09-29), 0a capa de defensa — la más importante de todas:
-// si el emisor corre una versión de la app DISTINTA a la nuestra, el número de
-// doca puede significar algo distinto entre los dos (p.ej. el cambio de rango de
-// muelles E16-E59 → E1-E55 del 2026-09-28: la doca "38" existe en ambos esquemas
-// pero un dispositivo viejo que nunca refrescó la página sigue transmitiendo con
-// el significado anterior). Aplicar ese estado — aunque sea force=true (CSV_LOAD/
-// Limpiar) — mezclaría dos tableros que ya no son compatibles. Se descarta por
-// completo y se avisa con el banner de "nueva versión" + un toast, para que se
-// note de inmediato (antes el aviso de versión nueva tardaba hasta 5 min en
-// aparecer solo, tiempo de sobra para que dos dispositivos se pisaran el tablero).
-if(data.__ver!==undefined&&data.__ver!==_BUILD_VERSION){
+// si el emisor tiene un ESQUEMA de numeración de muelles distinto al nuestro
+// (_BAYS_SCHEMA, que solo cambia cuando de verdad cambia ALL_POSSIBLE_BAYS —
+// NO en cada deploy), el número de doca puede significar algo distinto entre
+// los dos (p.ej. el cambio de rango E16-E59 → E1-E55 del 2026-09-28: la doca
+// "38" existe en ambos esquemas pero un dispositivo viejo que nunca refrescó
+// la página sigue transmitiendo con el significado anterior). Aplicar ese
+// estado — aunque sea force=true (CSV_LOAD/Limpiar) — mezclaría dos tableros
+// que ya no son compatibles. Se descarta por completo y se avisa con el banner
+// de "nueva versión" + un toast, para que se note de inmediato (antes el aviso
+// de versión nueva tardaba hasta 5 min en aparecer solo, tiempo de sobra para
+// que dos dispositivos se pisaran el tablero).
+if(data.__baysSchema!==undefined&&data.__baysSchema!==_BAYS_SCHEMA){
   if(!S._verMismatchWarned||Date.now()-S._verMismatchWarned>30000){
     S._verMismatchWarned=Date.now();
     try{const _vb=document.getElementById('newVersionBanner');if(_vb)_vb.style.display='flex';}catch(e){}

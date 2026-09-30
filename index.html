@@ -2869,7 +2869,7 @@ function parseCSV(text){
   // Broadcast CSV_LOAD — include __gen/__ts so receiving devices reset their stateGen
   // and don't reject subsequent STATE broadcasts from the admin
   const csvPayload={};ALL_BAYS.forEach(n=>{const b=S.bays[n];csvPayload[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds||0};});
-  csvPayload.__gen=S.stateGen;csvPayload.__ts=S._stateTs||0;csvPayload.__dispatchOla=S.dispatchedOla||0;csvPayload.__call=null;
+  csvPayload.__gen=S.stateGen;csvPayload.__ts=S._stateTs||0;csvPayload.__dispatchOla=S.dispatchedOla||0;csvPayload.__call=null;csvPayload.__ver=_BUILD_VERSION;
   S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'CSV_LOAD',data:csvPayload});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('CSV_LOAD',csvPayload);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);
   // Follow-up broadcasts: ensures devices with brief lag also get the new state
   setTimeout(()=>broadcastState(true),1500);
@@ -2912,7 +2912,7 @@ function forceResync(){
   // This overrides stateGen on all receiving devices — cannot be rejected
   S.stateGen=Date.now();S._stateTs=Date.now();S.isStateOwner=true;
   const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null,elapsedSeconds:b.elapsedSeconds};});
-  p.__gen=S.stateGen;p.__ts=S._stateTs;p.__dispatchOla=S.dispatchedOla||0;p.__call=S.pendingDriverCall||null;p.__hist=S.history.slice(-150);
+  p.__gen=S.stateGen;p.__ts=S._stateTs;p.__dispatchOla=S.dispatchedOla||0;p.__call=S.pendingDriverCall||null;p.__hist=S.history.slice(-150);p.__ver=_BUILD_VERSION;
   S.isBroadcasting=true;
   try{S.bc&&S.bc.postMessage({type:'CSV_LOAD',data:p});}catch(e){}
   try{S.ablyChannel&&S.ablyChannel.publish('CSV_LOAD',p);}catch(e){}
@@ -3238,7 +3238,7 @@ function _doBroadcastState(){
   // broadcast rutinario (el que se dispara en cada escaneo) manda solo un historial
   // reciente pequeño; el historial completo se sincroniza vía CSV_LOAD/Sync manual
   // (mucho menos frecuentes) y por acumulación incremental entre broadcasts.
-  const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null};});p.__gen=S.stateGen;p.__ts=S._stateTs||0;p.__call=S.pendingDriverCall||null;p.__dispatchOla=S.dispatchedOla||0;p.__hist=S.history.slice(-10);S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'STATE',data:p});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('STATE',p);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);document.getElementById('lastSync').textContent='Sync: '+new Date().toLocaleTimeString();
+  const p={};ALL_BAYS.forEach(n=>{const b=S.bays[n];p[n]={status:b.status,queue:b.queue,currentIdx:b.currentIdx,entryTime:b.entryTime?b.entryTime.toISOString():null};});p.__gen=S.stateGen;p.__ts=S._stateTs||0;p.__call=S.pendingDriverCall||null;p.__dispatchOla=S.dispatchedOla||0;p.__hist=S.history.slice(-10);p.__ver=_BUILD_VERSION;S.isBroadcasting=true;try{S.bc&&S.bc.postMessage({type:'STATE',data:p});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish('STATE',p);}catch(e){}setTimeout(()=>S.isBroadcasting=false,200);document.getElementById('lastSync').textContent='Sync: '+new Date().toLocaleTimeString();
 }
 function manualReconnect(){
   if(!S._reconnectAttempts)S._reconnectAttempts=0;
@@ -3263,6 +3263,24 @@ function manualReconnect(){
 }
 function broadcastEvent(type,data){try{S.bc&&S.bc.postMessage({type,data});}catch(e){}try{S.ablyChannel&&S.ablyChannel.publish(type,data);}catch(e){}}
 function applyRemote(data,force){if(!data)return;
+// INCIDENTE REAL (2026-09-29), 0a capa de defensa — la más importante de todas:
+// si el emisor corre una versión de la app DISTINTA a la nuestra, el número de
+// doca puede significar algo distinto entre los dos (p.ej. el cambio de rango de
+// muelles E16-E59 → E1-E55 del 2026-09-28: la doca "38" existe en ambos esquemas
+// pero un dispositivo viejo que nunca refrescó la página sigue transmitiendo con
+// el significado anterior). Aplicar ese estado — aunque sea force=true (CSV_LOAD/
+// Limpiar) — mezclaría dos tableros que ya no son compatibles. Se descarta por
+// completo y se avisa con el banner de "nueva versión" + un toast, para que se
+// note de inmediato (antes el aviso de versión nueva tardaba hasta 5 min en
+// aparecer solo, tiempo de sobra para que dos dispositivos se pisaran el tablero).
+if(data.__ver!==undefined&&data.__ver!==_BUILD_VERSION){
+  if(!S._verMismatchWarned||Date.now()-S._verMismatchWarned>30000){
+    S._verMismatchWarned=Date.now();
+    try{const _vb=document.getElementById('newVersionBanner');if(_vb)_vb.style.display='flex';}catch(e){}
+    try{toast('Un dispositivo tiene una versión distinta de la app — pídele que actualice la página (Ctrl+F5)','danger',8000);}catch(e){}
+  }
+  return;
+}
 // INCIDENTE REAL (2026-09-23), 2da capa de defensa: si este mensaje NO es una
 // acción explícita (force) y trae un __ts más de 15 minutos MÁS VIEJO que el
 // nuestro, es casi seguro un dispositivo con caché atrasada re-transmitiendo su
